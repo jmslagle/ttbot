@@ -20,6 +20,8 @@ var djs = 0;
 var saystats = config.saystats;
 var hatephil = config.hatephil;
 var dance = config.dance;
+var doidle = config.doidle;
+var idleenforce = config.idleenforce;
 
 var users = {}
 
@@ -68,8 +70,18 @@ bot.on('tcpMessage', function (socket, msg) {
     }
   } else if (msg.match(/^idle$/)) {
     checkIdle();
+  } else if (msg.match(/^enforce$/)) {
+    enforceRoom();
+  } else if (msg.match(/^djs$/)) {
+    var now = new Date();
+    for(var u in users) {
+      if (users[u].isDj == true) {
+        socket.write(users[u].name + ' Idle: ' + 
+            ((now - users[u].lastActive)/1000) + ' Dj: '
+           + users[u].isDj + '\n');
+      }
+    }
   }
-
 });
 
 bot.on('newsong', function(data) {
@@ -111,6 +123,7 @@ bot.on('roomChanged', function(data) {
     cs.mods = meta.moderator_id;
     cs.mods.push(meta.userid);
     cs.snags = 0;
+    mods = cs.mods;
 
     // Repopulate user list
     users = {}
@@ -150,6 +163,7 @@ bot.on('endsong', function (data) {
     bot.speak(cs.song + ' stats: up: ' + cs.up + ' down: ' + cs.down +
       ' snag: ' + cs.snags);
   }
+  enforceRoom();
 });
 
 bot.on('add_dj', function (data) {
@@ -222,10 +236,37 @@ bot.on('speak', function (data) {
       saystats = !saystats;
       bot.speak('Saystats set to: ' + saystats);
     }
-  } else if (text.match(/^.j dance$/)) {
+  } else if (text.match(/^\.j dance$/)) {
     if (isop(data.userid) || ismod(data.userid)) {
       dance = !dance;
       bot.speak('Dance set to: ' + dance);
+    }
+  } else if (text.match(/^\.j doidle$/)) {
+    if (isop(data.userid) || ismod(data.userid)) {
+      doidle = !doidle;
+      bot.speak('Idle announcements set to: ' + doidle);
+    }
+  } else if (text.match(/^\.j idleenforce$/)) {
+    if (isop(data.userid) || ismod(data.userid)) {
+      idleenforce = !idleenforce;
+      bot.speak('Idle Enforcement set to: ' + idleenforce);
+    }
+  } else if (text.match(/^\.j idleset$/)) {
+    if (isop(data.userid) || ismod(data.userid)) {
+      bot.speak("Idle Warn: " + config.idlewarn + " Idle Limit: " 
+          + config.idlelimit + " Idle Reset: " + config.idlereset
+          + " Idle Kick: " + config.idlekick + " Min DJS: " + config.mindjs);
+    } 
+  } else if (text.match(/^\.j djs$/)) {
+    if (isop(data.userid) || ismod(data.userid)) {
+      var now = new Date();
+      for(var u in users) {
+        if (users[u].isDj == true) {
+          bot.speak(users[u].name + ' - Id: ' + 
+              (Math.round((now - users[u].lastActive)/1000)) + ' Wa: '
+              + users[u].warns.length + '');
+        }
+      }
     }
   } else if (text.match(/^\.j djup$/)) {
     if (isop(data.userid)) {
@@ -304,11 +345,49 @@ function updateActivity(userid) {
   }
 }
 
+function enforceRoom() {
+  var now = new Date();
+  if (djs < config.mindjs) { return; }
+  for (var u in users) {
+    if (users[u].isDj == false) { continue; }
+    // Do the idle check so we can just compare
+    checkIdle();
+    if (now - users[u].lastActive > (config.idlekick * 60000)) {
+      console.log("Idle Kick: " + users[u].name);
+      if (doidle == true) {
+        bot.speak("Sorry " + users[u].name + " you're idle more than " +
+            config.idlekick + " minutes.  Feel free to hop back up when " +
+            "you return.");
+      }
+      if (idleenforce == true) {
+        bot.remDj(user[u].userid);
+      }
+      continue;
+    }
+    if (users[u].warns.length >= config.idlelimit) {
+      console.log("Idle Limit: " + users[u].name);
+      if (doidle == true) {
+        bot.speak("Sorry " + users[u].name + " you're idle more than " +
+            config.idlelimit + " times in " + config.idlereset + " hour(s). " +
+            " Feel free to hop back up when you return.");
+      }
+      if (idleenforce == true) {
+        bot.remDj(user[u].userid);
+      }
+    }
+  }
+}
+
+
 function checkIdle() {
   var now = new Date();
   for(var u in users) {
-    if (u.isDj = true) {
+    if (users[u].isDj == true) {
       if (now - users[u].lastActive > (config.idlewarn * 60000)) {
+        // Don't due stuff if it's too soon
+        if (users[u].warns.length > 0 &&
+            (now - users[u].warns[users[u].warns.length-1]) <
+            (config.idlewarn * 60000)) { continue; }
         // First age out any old ones
         for (var i=0;i<users[u].warns.length;i++) {
           if (now - users[u].warns[i] > (config.idlereset * 60000)) {
@@ -317,24 +396,34 @@ function checkIdle() {
         }
         // Add new warning
         users[u].warns.push(now);
-        if (djs > config.mindjs && users[u].warns.length < (config.idlelimit+1)) {
-          switch(u.warns.length) {
+        if (djs > config.mindjs &&
+            users[u].warns.length < (config.idlelimit+1)) {
+          switch(users[u].warns.length) {
             case 1:
               var warn = "First";
               break;
             case 2:
               var warn = "Second";
               break;
-            default:
+            case 3:
               var warn = "Third";
               break;
+            default:
+              var warn = users[u].warns.length + "th"; 
+              break;
           }
-          bot.speak(users[u].name + " - " + warn + "warning - idle > 9 mins " +
-              "in " + config.idlereset/60 + " hours.  Please be active");
+          if (doidle == true) {
+            bot.speak(users[u].name + " - " + warn + 
+                " warning - idle > " + config.idlewarn + " mins " +
+               "in " + config.idlereset/60 + " hours.  Please be active "+
+               config.idlewarn + "x" + config.idlelimit);
+          }
         }
       }
     }
   }
 }
+
+setInterval(checkIdle, 10000);
 
 
