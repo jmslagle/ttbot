@@ -2,15 +2,8 @@ var Bot    = require('ttapi');
 var config = require('./jsbot.conf.js');
 var db     = require('mongoose');
 
-//var AUTH =  'auth+live+d854aef13150cc9dbc4c903bc5f5f05dd6a9dafd';
-//var USERID = '4ed9bb62a3f75122f60005ff';
-//var ROOMID = '4e35aff714169c607f5813dc';
-var AUTH   = 'auth+live+ded3591fd7e3a27f5eccabfb42f384538d62dc6a';
-var USERID = '4ecc10154fe7d03a6f0003d9';
-var ROOMID = '4e35aff714169c607f5813dc';
-
-var bot = new Bot(AUTH, USERID, ROOMID);
-bot.tcpListen(2345, '127.0.0.1');
+var bot = new Bot(config.AUTH, config.USERID, config.ROOMID);
+bot.tcpListen(config.telport, '127.0.0.1');
 
 setTimeout(function() { bot.modifyLaptop('chrome'); }, 2500);
 
@@ -22,10 +15,10 @@ var lastbs = new Date(0);
 var lastrules = new Date(0);
 var lastdjannouce = new Date(0);
 var voteup = false;
-var saystats = true;
-var hatephil = false;
 
-var dance = true;
+var saystats = config.saystats;
+var hatephil = config.hatephil;
+var dance = config.dance;
 
 var users = {}
 
@@ -42,10 +35,7 @@ var cs = {
   snags: 0
 };
 
-
-
-var myScriptVersion = 'V0.0.1';
-var ops= ['4e81f2084fe7d052f551f1cb'];
+var myScriptVersion = 'JSBot 2012010201';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -68,13 +58,19 @@ bot.on('tcpMessage', function (socket, msg) {
       var newSong = data.room.metadata.current_song._id;
       bot.playlistAdd(newSong);
     });
+  } else if (msg.match(/^users$/)) {
+    var now = new Date();
+    for(var u in users) {
+      socket.write(users[u].name + ' Idle: ' + 
+          ((now - users[u].lastActive)/1000) + ' Dj: '
+          + users[u].isDj + '\n');
+    }
   }
 
 });
 
 bot.on('newsong', function(data) {
   meta = data.room.metadata;
-  var dj = meta.current_dj;
   cs.artist = meta.current_song.metadata.artist;
   cs.song = meta.current_song.metadata.song;
   cs.djname = meta.current_song.djname;
@@ -86,10 +82,10 @@ bot.on('newsong', function(data) {
   cs.mods = meta.moderator_id;
   cs.mods.push(meta.userid);
   cs.snags = 0;
-//  if (dj == '4e0cd7bba3f751466f14a2ad') {
+//  if (cs.djid == '4e0cd7bba3f751466f14a2ad') {
 //    bot.vote('down');
 //  }
-//  if (isop(dj) || ismod(dj)) {
+//  if (isop(cs.djid) || ismod(cs.djid)) {
 //    bot.vote('up');
 //  }
   mods = meta.moderator_id;
@@ -112,16 +108,36 @@ bot.on('roomChanged', function(data) {
     cs.mods = meta.moderator_id;
     cs.mods.push(meta.userid);
     cs.snags = 0;
+
+    // Repopulate user list
+    users = {}
+    for (var u=0; u<data.users.length; u++) {
+      us = data.users[u];
+      us.lastActive = new Date();
+      us.isDj = false;
+      users[us.userid] = us;
+      console.log('User: ' + us.name);
+    }
+    for (var d=0; d<meta.djs.length; d++) {
+      users[meta.djs[d]].isDj = true;
+    }
 });
 
 bot.on('update_votes', function (data) {
   cs.up = data.room.metadata.upvotes;
   cs.down = data.room.metadata.downvotes;
   cs.listeners = data.room.metadata.listeners;
+
+  var vl = data.room.metadata.votelog;
+  for (var u=0; u<vl.length; u++) {
+    updateActivity(vl[u][0]);
+  }
+
 });
 
 bot.on('snagged', function(data) {
   cs.snags = cs.snags + 1;
+  updateActivity(data.userid);
 });
 
 bot.on('endsong', function (data) {
@@ -132,9 +148,25 @@ bot.on('endsong', function (data) {
 });
 
 bot.on('add_dj', function (data) {
+  users[data.user[0].userid].isDj = true;
   if (djannounce) {
     bot.speak('Hi ' + data.user[0].name + ' ' + djannounce);
   }
+});
+
+bot.on('rem_dj', function (data) {
+  users[data.user[0].userid].isDj = false;
+});
+
+bot.on('registered', function (data) {
+  var us=data.user[0];
+  us.isDj = false;
+  us.lastActive = new Date();
+  users[us.userid] = us;
+});
+
+bot.on('deregistered', function (data) {
+  delete users[data.user[0].userid];
 });
 
 // Our in room commands
@@ -142,6 +174,8 @@ bot.on('speak', function (data) {
   // Get the data
   var name = data.name;
   var text = data.text;
+
+  updateActivity(data.userid);
 
   console.log('chat: ' + name + ': ' + text);
   // Respond to "botsnack" command
@@ -234,8 +268,8 @@ bot.on('speak', function (data) {
 });
 
 function isop (userid) {
-  for (var i = 0; i < ops.length; i++) {
-    if (userid == ops[i]) {
+  for (var i = 0; i < config.ops.length; i++) {
+    if (userid == config.ops[i]) {
       return true;
     }
   }
@@ -252,3 +286,8 @@ function ismod (userid) {
   return ismod;
 }
 
+function updateActivity(userid) {
+  if (userid && users.hasOwnProperty(userid)) {
+    users[userid].lastActive = new Date();
+  }
+}
