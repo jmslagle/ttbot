@@ -15,6 +15,7 @@ var lastbs = new Date(0);
 var lastrules = new Date(0);
 var lastdjannouce = new Date(0);
 var voteup = false;
+var djs = 0;
 
 var saystats = config.saystats;
 var hatephil = config.hatephil;
@@ -65,6 +66,8 @@ bot.on('tcpMessage', function (socket, msg) {
           ((now - users[u].lastActive)/1000) + ' Dj: '
           + users[u].isDj + '\n');
     }
+  } else if (msg.match(/^idle$/)) {
+    checkIdle();
   }
 
 });
@@ -115,12 +118,14 @@ bot.on('roomChanged', function(data) {
       us = data.users[u];
       us.lastActive = new Date();
       us.isDj = false;
+      us.warns = [];
       users[us.userid] = us;
       console.log('User: ' + us.name);
     }
     for (var d=0; d<meta.djs.length; d++) {
       users[meta.djs[d]].isDj = true;
     }
+    djs = meta.djs.length;
 });
 
 bot.on('update_votes', function (data) {
@@ -152,21 +157,28 @@ bot.on('add_dj', function (data) {
   if (djannounce) {
     bot.speak('Hi ' + data.user[0].name + ' ' + djannounce);
   }
+  djs = djs + 1;
+  console.log("DJUP: " + data.user[0].name);
 });
 
 bot.on('rem_dj', function (data) {
   users[data.user[0].userid].isDj = false;
+  djs = djs - 1;
+  console.log("DJDOWN: " + data.user[0].name);
 });
 
 bot.on('registered', function (data) {
   var us=data.user[0];
   us.isDj = false;
+  us.warns = [];
   us.lastActive = new Date();
   users[us.userid] = us;
+  console.log("Join: " + us.name);
 });
 
 bot.on('deregistered', function (data) {
   delete users[data.user[0].userid];
+  console.log("Part: " + data.user[0].name);
 });
 
 // Our in room commands
@@ -291,3 +303,38 @@ function updateActivity(userid) {
     users[userid].lastActive = new Date();
   }
 }
+
+function checkIdle() {
+  var now = new Date();
+  for(var u in users) {
+    if (u.isDj = true) {
+      if (now - users[u].lastActive > (config.idlewarn * 60000)) {
+        // First age out any old ones
+        for (var i=0;i<users[u].warns.length;i++) {
+          if (now - users[u].warns[i] > (config.idlereset * 60000)) {
+            users[u].warns.slice(i);
+          }
+        }
+        // Add new warning
+        users[u].warns.push(now);
+        if (djs > config.mindjs && users[u].warns.length < (config.idlelimit+1)) {
+          switch(u.warns.length) {
+            case 1:
+              var warn = "First";
+              break;
+            case 2:
+              var warn = "Second";
+              break;
+            default:
+              var warn = "Third";
+              break;
+          }
+          bot.speak(users[u].name + " - " + warn + "warning - idle > 9 mins " +
+              "in " + config.idlereset/60 + " hours.  Please be active");
+        }
+      }
+    }
+  }
+}
+
+
