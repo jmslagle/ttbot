@@ -53,6 +53,13 @@ bot.on('tcpMessage', function (socket, msg) {
   } else if (msg.match(/^say (.*)$/)) {
     var com = msg.match(/^say (.*)$/)[1];
     bot.speak(com);
+  } else if (msg.match(/^warn (\w*) (\w*)$/)) {
+    var id = msg.match(/^warn (\w*) (\w*)$/)[1];
+    var warn = msg.match(/^warn (\w*) (\w*)$/)[2];
+    socket.write('Setting warn on ' + id + ' to ' + warn);
+    for (var x=0; x<warn; x++) {
+      users[id].warns.push(new Date());
+    }
   } else if (msg.match(/^avatar (.*)$/)) {
     var av = msg.match(/^avatar (.*)$/)[1];
     bot.setAvatar(av);
@@ -77,8 +84,8 @@ bot.on('tcpMessage', function (socket, msg) {
     for(var u in users) {
       if (users[u].isDj == true) {
         socket.write(users[u].name + ' Idle: ' + 
-            ((now - users[u].lastActive)/1000) + ' Dj: '
-           + users[u].isDj + '\n');
+            ((now - users[u].lastActive)/1000) + ' Warns: '
+           + users[u].warns.length + '\n');
       }
     }
   }
@@ -356,23 +363,27 @@ function enforceRoom() {
       console.log("Idle Kick: " + users[u].name);
       if (doidle == true) {
         bot.speak("Sorry " + users[u].name + " you're idle more than " +
-            config.idlekick + " minutes.  Feel free to hop back up when " +
-            "you return.");
+            config.idlekick + " minutes.  Last warning.");
       }
       if (idleenforce == true) {
-        bot.remDj(user[u].userid);
+        if (now - users[u].lastActive > (config.idlekick * 60000 * 1.5)) {
+          bot.remDj(users[u].userid);
+          bot.speak("Removing " + users[u].name + " for inactivity");
+        }
       }
       continue;
     }
     if (users[u].warns.length >= config.idlelimit) {
-      console.log("Idle Limit: " + users[u].name);
-      if (doidle == true) {
-        bot.speak("Sorry " + users[u].name + " you're idle more than " +
-            config.idlelimit + " times in " + config.idlereset + " hour(s). " +
-            " Feel free to hop back up when you return.");
-      }
-      if (idleenforce == true) {
-        bot.remDj(user[u].userid);
+      if (now - users[u].lastActive > (config.idlewarn * 60000)) {
+        console.log("Idle Limit: " + users[u].name);
+        if (doidle == true) {
+          bot.speak("Sorry " + users[u].name + " you're idle more than " +
+              config.idlelimit + " times in " + config.idlereset/60 + " hour(s). " +
+              " Feel free to hop back up when you return.");
+        }
+        if (idleenforce == true) {
+          bot.remDj(users[u].userid);
+        }
       }
     }
   }
