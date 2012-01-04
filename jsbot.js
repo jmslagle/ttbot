@@ -139,6 +139,7 @@ bot.on('roomChanged', function(data) {
       us.lastActive = new Date();
       us.isDj = false;
       us.warns = [];
+      us.lastWarn = false;
       users[us.userid] = us;
       console.log('User: ' + us.name);
     }
@@ -192,6 +193,7 @@ bot.on('registered', function (data) {
   var us=data.user[0];
   us.isDj = false;
   us.warns = [];
+  us.lastWarn = false;
   us.lastActive = new Date();
   users[us.userid] = us;
   console.log("Join: " + us.name);
@@ -349,6 +351,7 @@ function ismod (userid) {
 function updateActivity(userid) {
   if (userid && users.hasOwnProperty(userid)) {
     users[userid].lastActive = new Date();
+    users[u].lastWarn = false;
   }
 }
 
@@ -361,9 +364,10 @@ function enforceRoom() {
     checkIdle();
     if (now - users[u].lastActive > (config.idlekick * 60000)) {
       console.log("Idle Kick: " + users[u].name);
-      if (doidle == true) {
+      if (doidle == true && users[u].lastWarn == false) {
         bot.speak("Sorry " + users[u].name + " you're idle more than " +
             config.idlekick + " minutes.  Last warning.");
+        users[u].lastWarn = true;
       }
       if (idleenforce == true) {
         if (now - users[u].lastActive > (config.idlekick * 60000 * 1.5)) {
