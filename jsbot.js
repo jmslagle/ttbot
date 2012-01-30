@@ -4,8 +4,9 @@ var db     = require('mongoose');
 
 var bot = new Bot(config.AUTH, config.USERID, config.ROOMID);
 bot.tcpListen(config.telport, '127.0.0.1');
+bot.listen(config.webport,'0.0.0.0');
 
-setTimeout(function() { bot.modifyLaptop('chrome'); }, 2500);
+setTimeout(function() { bot.modifyLaptop('iphone'); }, 2500);
 
 //bot.debug = true;
 
@@ -21,13 +22,23 @@ var saystats = config.saystats;
 var hatephil = config.hatephil;
 var dance = config.dance;
 var doidle = config.doidle;
+var amdj = false;
 var idleenforce = config.idleenforce;
+var collect = config.collect;
 
 var users = {}
+
+var topsong = {
+  songid: null,
+  songname: null,
+  votes: 0,
+  percent: 0 
+};
 
 var cs = {
   artist: null,
   song: null,
+  songid: null,
   djname: null,
   djid: null,
   up: 0,
@@ -63,6 +74,9 @@ bot.on('tcpMessage', function (socket, msg) {
   } else if (msg.match(/^avatar (.*)$/)) {
     var av = msg.match(/^avatar (.*)$/)[1];
     bot.setAvatar(av);
+  } else if (msg.match(/^songadd (.*)$/)) {
+    var s = msg.match(/^songadd (.*)$/)[1];
+    bot.playlistAdd(s);
   } else if (msg.match(/^snag$/)) {
     bot.roomInfo(true, function(data) {
       var newSong = data.room.metadata.current_song._id;
@@ -72,7 +86,7 @@ bot.on('tcpMessage', function (socket, msg) {
     var now = new Date();
     for(var u in users) {
       socket.write(users[u].name + ' Idle: ' + 
-          ((now - users[u].lastActive)/1000) + ' Dj: '
+          ((now - users[u].lastActive)/1001) + ' Dj: '
           + users[u].isDj + '\n');
     }
   } else if (msg.match(/^idle$/)) {
@@ -88,6 +102,37 @@ bot.on('tcpMessage', function (socket, msg) {
            + users[u].warns.length + '\n');
       }
     }
+  } 
+});
+
+bot.on('httpRequest', function (req,res) {
+  var method = req.method;
+  var url = req.url;
+  switch (url) {
+    case '/users/':
+      if (method=='GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': 'http://www.tacorp.net' });
+        res.end(JSON.stringify(users));
+      } else {
+        res.writeHead(500);
+        res.end();
+      }
+      break;
+    case '/cs/':
+      if (method=='GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': 'http://www.tacorp.net' });
+        res.end(JSON.stringify(cs));
+      } else {
+        res.writeHead(500);
+        res.end();
+      }
+      break;
+    default:
+      res.writeHead(404);
+      res.end("Page not found");
+      break;
   }
 });
 
@@ -95,6 +140,7 @@ bot.on('newsong', function(data) {
   meta = data.room.metadata;
   cs.artist = meta.current_song.metadata.artist;
   cs.song = meta.current_song.metadata.song;
+  cs.songid = meta.current_song._id;
   cs.djname = meta.current_song.djname;
   cs.djid = meta.current_song.djid;
   cs.up = meta.upvotes;
@@ -110,6 +156,11 @@ bot.on('newsong', function(data) {
 //  if (isop(cs.djid) || ismod(cs.djid)) {
 //    bot.vote('up');
 //  }
+
+  if (amdj) {
+    setTimeout(function() { bot.vote('up'); }, 
+        2750 + (Math.floor(Math.random()*16)*1000));
+  }
   mods = meta.moderator_id;
   mods.push(meta.userid);
   voteup = false;
@@ -122,6 +173,7 @@ bot.on('roomChanged', function(data) {
     cs.artist = meta.current_song.metadata.artist;
     cs.song = meta.current_song.metadata.song;
     cs.djname = meta.current_song.djname;
+    cs.songid = meta.current_song._id;
     cs.djid = meta.current_song.djid;
     cs.up = meta.upvotes;
     cs.down = meta.downvotes;
@@ -154,9 +206,13 @@ bot.on('update_votes', function (data) {
   cs.down = data.room.metadata.downvotes;
   cs.listeners = data.room.metadata.listeners;
 
+  var now = new Date();
   var vl = data.room.metadata.votelog;
   for (var u=0; u<vl.length; u++) {
     updateActivity(vl[u][0]);
+    if (users.hasOwnProperty(vl[u][0])) {
+      console.log(now + " VoteUp: " + users[vl[u][0]].name);
+    }
   }
 
 });
@@ -171,11 +227,25 @@ bot.on('endsong', function (data) {
     bot.speak(cs.song + ' stats: up: ' + cs.up + ' down: ' + cs.down +
       ' snag: ' + cs.snags);
   }
+  var sp = 0;
+  if (cs.listeners != 0) { 
+    sp = cs.up / cs.listeners;
+  }
+  if (sp > topsong.percent) {
+    topsong.songid = cs.songid;
+    topsong.percent = sp;
+    topsong.votes = cs.up;
+    topsong.songname = cs.song;
+  }
   enforceRoom();
 });
 
 bot.on('add_dj', function (data) {
+  if (data.user[0].userid == config.USERID) {
+    amdj = true;
+  }
   users[data.user[0].userid].isDj = true;
+  updateActivity(data.user[0].userid);
   if (djannounce) {
     bot.speak('Hi ' + data.user[0].name + ' ' + djannounce);
   }
@@ -184,6 +254,9 @@ bot.on('add_dj', function (data) {
 });
 
 bot.on('rem_dj', function (data) {
+  if (data.user[0].userid == config.USERID) {
+    amdj = false;
+  }
   users[data.user[0].userid].isDj = false;
   djs = djs - 1;
   console.log("DJDOWN: " + data.user[0].name);
@@ -210,9 +283,11 @@ bot.on('speak', function (data) {
   var name = data.name;
   var text = data.text;
 
+  var now = new Date();
+
   updateActivity(data.userid);
 
-  console.log('chat: ' + name + ': ' + text);
+  console.log(now + ' chat: ' + name + ': ' + text);
   // Respond to "botsnack" command
   if (text.match(/^\.j botsnack$/)) {
     var l_d = new Date() - lastbs;
@@ -224,7 +299,7 @@ bot.on('speak', function (data) {
     bot.vote('up');
   } else if (text.match(/^\/dance$/)) {
     if (hatephil == true && cs.djid == '4e0cd7bba3f751466f14a2ad') { return; }
-    if (dance == false) { return; }
+    if (!isop(data.userid) && !ismod(data.userid) && dance == false) { return; }
     if (!voteup) {
       bot.vote('up');
     }
@@ -260,6 +335,11 @@ bot.on('speak', function (data) {
       idleenforce = !idleenforce;
       bot.speak('Idle Enforcement set to: ' + idleenforce);
     }
+  } else if (text.match(/^.j collect$/)) {
+    if (isop(data.userid) || ismod(data.userid)) {
+      collect = !collect;
+      bot.speak('Collect set to: ' + collect);
+    }
   } else if (text.match(/^\.j idleset$/)) {
     if (isop(data.userid) || ismod(data.userid)) {
       bot.speak("Idle Warn: " + config.idlewarn + " Idle Limit: " 
@@ -278,17 +358,17 @@ bot.on('speak', function (data) {
       }
     }
   } else if (text.match(/^\.j djup$/)) {
-    if (isop(data.userid)) {
+    if (isop(data.userid) || ismod(data.userid)) {
       bot.speak('Yay!  I like to DJ!');
       bot.addDj();
     }
   } else if (text.match(/^\.j djdown$/)) {
-    if (isop(data.userid)) {
+    if (isop(data.userid) || ismod(data.userid)) {
       bot.speak('Aww.  Down I go.');
       bot.remDj();
     }
   } else if (text.match(/^\.j djqueue$/)) {
-    if (isop(data.userid)) {
+    if (isop(data.userid) || ismod(data.userid)) {
       bot.roomInfo(true, function(data) {
         var newSong = data.room.metadata.current_song._id;
         var newSongName = data.room.metadata.current_song.metadata.song;
@@ -297,10 +377,13 @@ bot.on('speak', function (data) {
       });
     }
   } else if (text.match(/^\.j djskip$/)) {
-    if (isop(data.userid)) {
+    if (isop(data.userid) || ismod(data.userid)) {
       bot.speak('Sorry you dont like my song.');
       bot.stopSong();
     }
+  } else if (text.match(/^\.j djshuffle$/)) {
+    bot.speak('Shuffling my playlist');
+    playlistRandom();
   } else if (text.match(/^\/q/)) {
     bot.speak('No queues in here, fastest fingers when a DJ decides to step down');
   } else if (text.match(/^\.j djannounce (.*)$/)) {
@@ -351,7 +434,7 @@ function ismod (userid) {
 function updateActivity(userid) {
   if (userid && users.hasOwnProperty(userid)) {
     users[userid].lastActive = new Date();
-    users[u].lastWarn = false;
+    users[userid].lastWarn = false;
   }
 }
 
@@ -363,13 +446,13 @@ function enforceRoom() {
     // Do the idle check so we can just compare
     checkIdle();
     if (now - users[u].lastActive > (config.idlekick * 60000)) {
-      console.log("Idle Kick: " + users[u].name);
       if (doidle == true && users[u].lastWarn == false) {
-        bot.speak("Sorry " + users[u].name + " you're idle more than " +
+        bot.speak("Sorry " + "@" + users[u].name + " you're idle more than " +
             config.idlekick + " minutes.  Last warning.");
         users[u].lastWarn = true;
       }
       if (idleenforce == true) {
+        console.log("Idle Kick: " + users[u].name);
         if (now - users[u].lastActive > (config.idlekick * 60000 * 1.5)) {
           bot.remDj(users[u].userid);
           bot.speak("Removing " + users[u].name + " for inactivity");
@@ -378,16 +461,15 @@ function enforceRoom() {
       continue;
     }
     if (users[u].warns.length >= config.idlelimit) {
-      if (now - users[u].lastActive > (config.idlewarn * 60000)) {
-        console.log("Idle Limit: " + users[u].name);
-        if (doidle == true) {
-          bot.speak("Sorry " + users[u].name + " you're idle more than " +
-              config.idlelimit + " times in " + config.idlereset/60 + " hour(s). " +
-              " Feel free to hop back up when you return.");
-        }
-        if (idleenforce == true) {
-          bot.remDj(users[u].userid);
-        }
+      console.log("Idle Limit: " + users[u].name);
+      if (doidle == true) {
+        bot.speak("Sorry " + "@" + users[u].name + " you're idle more than " +
+            config.idlelimit + " times in " + config.idlereset/60 + " hour(s). " +
+            " Feel free to hop back up when you return.");
+      }
+      if (idleenforce == true) {
+        bot.remDj(users[u].userid);
+        users[u].warns = [];
       }
     }
   }
@@ -397,18 +479,18 @@ function enforceRoom() {
 function checkIdle() {
   var now = new Date();
   for(var u in users) {
+    // First age out any old ones
+    for (var i=0;i<users[u].warns.length;i++) {
+      if (now - users[u].warns[i] > (config.idlereset * 60000)) {
+        users[u].warns.splice(i,1);
+      }
+    }
     if (users[u].isDj == true) {
       if (now - users[u].lastActive > (config.idlewarn * 60000)) {
         // Don't due stuff if it's too soon
         if (users[u].warns.length > 0 &&
             (now - users[u].warns[users[u].warns.length-1]) <
             (config.idlewarn * 60000)) { continue; }
-        // First age out any old ones
-        for (var i=0;i<users[u].warns.length;i++) {
-          if (now - users[u].warns[i] > (config.idlereset * 60000)) {
-            users[u].warns.slice(i);
-          }
-        }
         // Add new warning
         users[u].warns.push(now);
         if (djs > config.mindjs &&
@@ -428,7 +510,7 @@ function checkIdle() {
               break;
           }
           if (doidle == true) {
-            bot.speak(users[u].name + " - " + warn + 
+            bot.speak("@" + users[u].name + " - " + warn + 
                 " warning - idle > " + config.idlewarn + " mins " +
                "in " + config.idlereset/60 + " hours.  Please be active "+
                config.idlewarn + "x" + config.idlelimit);
@@ -439,6 +521,31 @@ function checkIdle() {
   }
 }
 
+function topSong() {
+  if (collect && !amdj) {
+    console.log("Adding song " + topsong.songname + " to queue - percent: " + 
+        topsong.percent + " votes: " + topsong.votes);
+    bot.playlistAdd(topsong.songid);
+  }
+  topsong.percent = 0;
+  topsong.songid = null;
+  topsong.songname = null;
+  topsong.votes = 0;
+}
+
+function playlistRandom() {
+  var plLength=0;
+  bot.playlistAll(function(resp) {
+    plLength=resp.list.length;
+  });
+  for (var i=0; i<plLength; i++) {
+    newPos=Math.floor(Math.random()*(plLength+1));
+    bot.playlistReorder(i, newPos);
+  }
+}
+
+
+setInterval(topSong, 60 * 1000 * 30);
 setInterval(checkIdle, 10000);
 
 
