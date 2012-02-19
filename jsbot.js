@@ -1,6 +1,11 @@
 var Bot    = require('ttapi');
 var config = require('./jsbot.conf.js');
-var db     = require('mongoose');
+var db     = require('./db.js');
+
+var Artist = db.Artist;
+var Song = db.Song;
+var User = db.User;
+var Play = db.Play;
 
 var bot = new Bot(config.AUTH, config.USERID, config.ROOMID);
 bot.tcpListen(config.telport, '127.0.0.1');
@@ -32,7 +37,7 @@ var topsong = {
   songid: null,
   songname: null,
   votes: 0,
-  percent: 0 
+  percent: 0
 };
 
 var cs = {
@@ -137,52 +142,20 @@ bot.on('httpRequest', function (req,res) {
 });
 
 bot.on('newsong', function(data) {
-  meta = data.room.metadata;
-  cs.artist = meta.current_song.metadata.artist;
-  cs.song = meta.current_song.metadata.song;
-  cs.songid = meta.current_song._id;
-  cs.djname = meta.current_song.djname;
-  cs.djid = meta.current_song.djid;
-  cs.up = meta.upvotes;
-  cs.down = meta.downvotes;
-  cs.listeners = meta.listeners;
-  cs.started = meta.current_song.starttime;
-  cs.mods = meta.moderator_id;
-  cs.mods.push(meta.userid);
-  cs.snags = 0;
-//  if (cs.djid == '4e0cd7bba3f751466f14a2ad') {
-//    bot.vote('down');
-//  }
-//  if (isop(cs.djid) || ismod(cs.djid)) {
-//    bot.vote('up');
-//  }
+
+  newSong(data);
 
   if (amdj) {
     setTimeout(function() { bot.vote('up'); }, 
         2750 + (Math.floor(Math.random()*16)*1000));
   }
-  mods = meta.moderator_id;
-  mods.push(meta.userid);
+
   voteup = false;
   console.log('Newsong: DJ: ' + cs.djname + '; ' + cs.song + ' by ' + cs.artist);
 });
 
 bot.on('roomChanged', function(data) {
-    meta = data.room.metadata;
-    var dj = meta.current_dj;
-    cs.artist = meta.current_song.metadata.artist;
-    cs.song = meta.current_song.metadata.song;
-    cs.djname = meta.current_song.djname;
-    cs.songid = meta.current_song._id;
-    cs.djid = meta.current_song.djid;
-    cs.up = meta.upvotes;
-    cs.down = meta.downvotes;
-    cs.listeners = meta.listeners;
-    cs.started = meta.current_song.starttime;
-    cs.mods = meta.moderator_id;
-    cs.mods.push(meta.userid);
-    cs.snags = 0;
-    mods = cs.mods;
+    newSong(data);
 
     // Repopulate user list
     users = {}
@@ -223,6 +196,9 @@ bot.on('snagged', function(data) {
 });
 
 bot.on('endsong', function (data) {
+
+  endSong();
+
   if (saystats==true) {
     bot.speak(cs.song + ' stats: up: ' + cs.up + ' down: ' + cs.down +
       ' snag: ' + cs.snags);
@@ -295,13 +271,16 @@ bot.on('speak', function (data) {
     lastbs = new Date();
     bot.speak('Thanks for the botsnack '+name);
     if (hatephil == true && cs.djid == '4e0cd7bba3f751466f14a2ad') { return; }
-    if (dance == false) { return; }
+    if (!isop(data.userid) && !ismod(data.userid) && dance == false) { return; }
+    setTimeout(function() { bot.vote('up'); },
+      2750 + (Math.floor(Math.random()*12)*1000));
     bot.vote('up');
   } else if (text.match(/^\/dance$/)) {
     if (hatephil == true && cs.djid == '4e0cd7bba3f751466f14a2ad') { return; }
-    if (!isop(data.userid) && !ismod(data.userid) && dance == false) { return; }
+    if (!isop(data.userid) && dance == false) { return; }
     if (!voteup) {
-      bot.vote('up');
+      setTimeout(function() { bot.vote('up'); },
+          2750 + (Math.floor(Math.random()*12)*1000));
     }
     voteup = true;
   } else if (text.match(/^\.j likephil$/) && isop(data.userid)) {
@@ -411,6 +390,43 @@ bot.on('speak', function (data) {
     }, 500);
   }
 });
+
+function newSong(data) {
+    meta = data.room.metadata;
+    var dj = meta.current_dj;
+    cs.artist = meta.current_song.metadata.artist;
+    cs.song = meta.current_song.metadata.song;
+    cs.djname = meta.current_song.djname;
+    cs.songid = meta.current_song._id;
+    cs.djid = meta.current_song.djid;
+    cs.up = meta.upvotes;
+    cs.down = meta.downvotes;
+    cs.listeners = meta.listeners;
+    cs.started = meta.current_song.starttime;
+    cs.mods = meta.moderator_id;
+    cs.mods.push(meta.userid);
+    cs.snags = 0;
+    mods = cs.mods;
+}
+
+function endSong() {
+  var up=cs.up;
+  var down=cs.down;
+  var snag=cs.snags;
+  Artist.foc(cs.artist, new Artist(), function(err, docs) {
+    log(err);
+    a = docs;
+    a.ups = a.ups ? a.ups + up : up;
+    a.downs = a.downs ? a.downs + down : down;
+    a.snags = a.snags ? a.snags + snag : snag;
+    log("Testing: " + up + " " + a.ups);
+    a.plays++;
+    a.save(function(err) {
+      log(err);
+    });
+  });
+}
+
 
 function isop (userid) {
   for (var i = 0; i < config.ops.length; i++) {
@@ -543,6 +559,13 @@ function playlistRandom() {
     bot.playlistReorder(i, newPos);
   }
 }
+
+function log(data) {
+  if (data) {
+    console.log("ERR: " + data);
+  }
+}
+
 
 
 setInterval(topSong, 60 * 1000 * 30);
