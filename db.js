@@ -7,7 +7,7 @@ var User = new Schema({
   lastActive: { type: Date, default: Date.now },
   name: { type: String, index: true },
   recordplay: { type: Schema.ObjectId, ref: 'Play'},
-  id: String,
+  record: { type: Number, default: 0 },
   lastSeen: { type: Date, default: Date.now },
   lastDj: Date,
   plays: { type: Number, default: 0 },
@@ -41,21 +41,74 @@ var Play = new Schema({
   ups: { type: Number, default: 0 },
   downs: { type: Number, default: 0 },
   snags: { type: Number, default: 0 },
-  song: { type: Schema.ObjectId, ref: 'Song' }
+  song: { type: Schema.ObjectId, ref: 'Song' },
+  played: { type: Date, default: Date.now },
+  score: { type: Number, default: 0, index: true }
 });
 
-Artist.statics.foc = function(name, i, cb) {
+Song.statics.foc = function(id, name, artistid, cb) {
+  s = this;
+  s.findById(id, function(err,docs) {
+    if (docs) {
+      cb(err,docs);
+    } else {
+      var i = new SongModel({
+        _id: id,
+        name: name,
+        artist: artistid
+      });
+      i.save(function(err) {
+        cb(err,i);
+      });
+    }
+  });
+};
+
+Artist.statics.foc = function(name, cb) {
   a = this;
-  i.lowername = name.toLowerCase();
-  a.findOne({lowername: i.lowername}, function(err, docs) {
+  lowername = name.toLowerCase();
+  a.findOne({lowername: lowername}, function(err, docs) {
     if (docs) {
       cb(err, docs);
     } else {
-      i.name=name;
+      var i = new ArtistModel({
+        name: name,
+        lowername: lowername
+      });
       i.save(function(err) {
-        a.findOne({lowername: i.lowername}, function(err, docs) {
-          cb(err, docs);
-        });
+        cb(err, i);
+      });
+    }
+  });
+};
+
+User.statics.foc = function(id, name, cb) {
+  u = this;
+  u.findById(id, function(err,docs) {
+    if (docs) {
+      cb(err,docs);
+    } else {
+      var i = new UserModel({
+        _id: id,
+        name: name
+      });
+      i.save(function(err) {
+        cb(err,i);
+      });
+    }
+  });
+};
+
+Play.statics.foc = function(id, cb) {
+  p=this;
+  p.findById(id, function(err,docs) {
+    if (docs) {
+      cb(err,docs);
+    } else {
+      var i = new PlayModel({
+      });
+      i.save(function(err) {
+        cb(err,i);
       });
     }
   });
