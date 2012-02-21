@@ -413,7 +413,7 @@ function doCommand(command, args) {
 }
 
 function record() {
-  Play.where('score').gt(0).sort('record',-1, 'played',1)
+  Play.where('score').gt(0).sort('score',-1, 'played',1)
     .limit(1).run(function(err,doc) {
       log(err);
       p=doc[0];
