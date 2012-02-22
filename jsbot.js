@@ -46,7 +46,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012022101';
+var botVersion = 'JSBot 2012022201';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -361,8 +361,11 @@ function doCommand(command, args, st, source, userid) {
       var l_d = new Date() - lastbs;
       if (l_d < (2* 60 * 1000)) { return; }
       lastbs = new Date();
-      bot.speak('Thanks for the botsnack '+ users[userid].name);
+      emote('C',null,'Thanks for the botsnack '+ users[userid].name);
       doDance(userid);
+      return;
+    case 'version':
+      emote(st,source,'JSBot by jslagle - version ' + botVersion);
       return;
   }
 
