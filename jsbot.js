@@ -24,22 +24,12 @@ var voteup = false;
 var djs = 0;
 
 var saystats = config.saystats;
-var hatephil = config.hatephil;
 var dance = config.dance;
 var doidle = config.doidle;
 var amdj = false;
 var idleenforce = config.idleenforce;
-var collect = config.collect;
-var ldjid = null;
 
 var users = {}
-
-var topsong = {
-  songid: null,
-  songname: null,
-  votes: 0,
-  percent: 0
-};
 
 var cs = {
   artist: null,
@@ -56,7 +46,7 @@ var cs = {
   snags: 0
 };
 
-var myScriptVersion = 'JSBot 2012010201';
+var botVersion = 'JSBot 2012022101';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -176,7 +166,6 @@ bot.on('roomChanged', function(data) {
     users[meta.djs[d]].isDj = true;
   }
   djs = meta.djs.length;
-  ldjid = meta.current_song.djid
 });
 
 bot.on('update_votes', function (data) {
@@ -207,16 +196,6 @@ bot.on('endsong', function (data) {
   if (saystats==true) {
     bot.speak(cs.song + ' stats: up: ' + cs.up + ' down: ' + cs.down +
       ' snag: ' + cs.snags);
-  }
-  var sp = 0;
-  if (cs.listeners != 0) { 
-    sp = cs.up / cs.listeners;
-  }
-  if (sp > topsong.percent) {
-    topsong.songid = cs.songid;
-    topsong.percent = sp;
-    topsong.votes = cs.up;
-    topsong.songname = cs.song;
   }
   enforceRoom();
 });
@@ -275,37 +254,11 @@ bot.on('speak', function (data) {
     if (res.length == 3 && res[2]) {
       args=res[2].trim();
     }
-    doCommand(com,args);
+    doCommand(com,args,'C',null,data.userid);
   }
-  if (text.match(/^\.j botsnack$/)) {
-    var l_d = new Date() - lastbs;
-    if (l_d < (2* 60 * 1000)) { return; }
-    lastbs = new Date();
-    bot.speak('Thanks for the botsnack '+name);
-    if (hatephil == true && cs.djid == '4e0cd7bba3f751466f14a2ad') { return; }
-    if (!isop(data.userid) && !ismod(data.userid) && dance == false) { return; }
-    setTimeout(function() { bot.vote('up'); },
-      2750 + (Math.floor(Math.random()*12)*1000));
-    bot.vote('up');
-  } else if (text.match(/^\/dance$/)) {
-    if (hatephil == true && cs.djid == '4e0cd7bba3f751466f14a2ad') { return; }
-    if (!isop(data.userid) && dance == false) { return; }
-    if (!voteup) {
-      setTimeout(function() { bot.vote('up'); },
-          2750 + (Math.floor(Math.random()*12)*1000));
-    }
-    voteup = true;
-  } else if (text.match(/^\.j likephil$/) && isop(data.userid)) {
-    hatephil = false;
-    bot.speak('Ok, I guess I like him now');
-  } else if (text.match(/^\.j hatephil$/) && isop(data.userid)) {
-    hatephil = true;
-    bot.speak(':spit: These botsnacks are POISON!');
-  } else if (text.match(/^\.j quit$/)) { 
-    if (isop(data.userid)) {
-      bot.speak('So long and thanks for all the fish.  '+name+' ordered me to die.');
-      process.exit()
-    }
+
+  if (text.match(/^\/dance$/)) {
+    doDance(data.userid);
   } else if (text.match(/^\.j sstoggle$/)) {
     if (isop(data.userid) || ismod(data.userid)) {
       saystats = !saystats;
@@ -326,23 +279,18 @@ bot.on('speak', function (data) {
       idleenforce = !idleenforce;
       bot.speak('Idle Enforcement set to: ' + idleenforce);
     }
-  } else if (text.match(/^.j collect$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      collect = !collect;
-      bot.speak('Collect set to: ' + collect);
-    }
   } else if (text.match(/^\.j idleset$/)) {
     if (isop(data.userid) || ismod(data.userid)) {
-      bot.speak("Idle Warn: " + config.idlewarn + " Idle Limit: " 
+      bot.speak("Idle Warn: " + config.idlewarn + " Idle Limit: "
           + config.idlelimit + " Idle Reset: " + config.idlereset
           + " Idle Kick: " + config.idlekick + " Min DJS: " + config.mindjs);
-    } 
+    }
   } else if (text.match(/^\.j djs$/)) {
     if (isop(data.userid) || ismod(data.userid)) {
       var now = new Date();
       for(var u in users) {
         if (users[u].isDj == true) {
-          bot.speak(users[u].name + ' - Id: ' + 
+          bot.speak(users[u].name + ' - Id: ' +
               (Math.round((now - users[u].lastActive)/1000)) + ' Wa: '
               + users[u].warns.length + '');
         }
@@ -400,19 +348,53 @@ bot.on('speak', function (data) {
     setTimeout(function() {
       bot.speak('5) No Spam, Creed or Rap/Hip Hop (Except Beastie Boys) See http://on.fb.me/tRcZZu for more info');
     }, 500);
-    record();
   } 
 });
 
-function doCommand(command, args) {
+function doCommand(command, args, st, source, userid) {
   switch(command) {
     case 'record':
-      record();
-      break;
+      record(st, source);
+      return;
+    case 'botsnack':
+      if (st != 'C') return; // Only do botsnacks in public
+      var l_d = new Date() - lastbs;
+      if (l_d < (2* 60 * 1000)) { return; }
+      lastbs = new Date();
+      bot.speak('Thanks for the botsnack '+ users[userid].name);
+      doDance(userid);
+      return;
+  }
+
+  // Mod level commands
+  if (isop(userid) || ismod(userid) || st == 'S') {
+  }
+
+  // Op level commands
+  if (isop(userid) || st == 'S') {
+    switch(command) {
+      case 'quit':
+        bot.speak('So long and thanks for all the fish.');
+        process.exit();
+        return;
+    }
   }
 }
 
-function record() {
+function doDance(userid) {
+  if (!isop(userid) && !ismod(userid) && dance == false) {
+    return;
+  }
+  if (!voteup) {
+  setTimeout(function() {
+    bot.vote('up'); },
+    2750 + (Math.floor(Math.random()*12)*1000)
+    );
+  }
+  voteup=true;
+}
+
+function record(st, source) {
   Play.where('score').gt(0).sort('score',-1, 'played',1)
     .limit(1).run(function(err,doc) {
       log(err);
@@ -426,7 +408,7 @@ function record() {
           Artist.findById(s.artist, function(err, doc) {
             log(err);
             a=doc;
-            bot.speak('Record Play: ' + d.name + ' played ' 
+            emote(st,source,'Record Play: ' + d.name + ' played ' 
               + s.name + ' by ' + a.name + ' with a combined score of '
               + p.score);
           });
@@ -435,9 +417,16 @@ function record() {
     });
 }
 
+function emote(st, source, msg) {
+  switch(st) {
+    case 'C':
+      bot.speak(msg);
+      break;
+  }
+}
+
 function newSong(data) {
     meta = data.room.metadata;
-    ldjid = cs.djid;
     var dj = meta.current_dj;
     cs.artist = meta.current_song.metadata.artist;
     cs.album = meta.current_song.metadata.album;
@@ -524,16 +513,17 @@ function endSong() {
     artistid = a._id;
   });
   var now = new Date();
-  log(djid);
   for (var u in users) {
     User.foc(users[u].userid, users[u].name, function(err, data) {
       log(err);
       us=data;
       uid=us._id;
-      us.lastActive=users[uid].lastActive;
-      us.lastSeen=now;
-      if (users[uid].isDj==true) {
-        us.lastDj=now;
+      if (users.hasOwnProperty(uid)) {
+        us.lastActive=users[uid].lastActive;
+        us.lastSeen=now;
+        if (users[uid].isDj==true) {
+          us.lastDj=now;
+        }
       }
       us.save(function(err) {
         log(err);
@@ -652,18 +642,6 @@ function checkIdle() {
   }
 }
 
-function topSong() {
-  if (collect && !amdj) {
-    console.log("Adding song " + topsong.songname + " to queue - percent: " + 
-        topsong.percent + " votes: " + topsong.votes);
-    bot.playlistAdd(topsong.songid);
-  }
-  topsong.percent = 0;
-  topsong.songid = null;
-  topsong.songname = null;
-  topsong.votes = 0;
-}
-
 function playlistRandom() {
   var plLength=0;
   bot.playlistAll(function(resp) {
@@ -683,7 +661,6 @@ function log(data) {
 
 
 
-setInterval(topSong, 60 * 1000 * 30);
 setInterval(checkIdle, 10000);
 
 
