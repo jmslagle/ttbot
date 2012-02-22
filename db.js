@@ -6,6 +6,7 @@ mongoose.connect('mongodb://localhost/jsbot');
 var User = new Schema({
   lastActive: { type: Date, default: Date.now },
   name: { type: String, index: true },
+  lowername: { type: String, index: true },
   recordplay: { type: Schema.ObjectId, ref: 'Play'},
   record: { type: Number, default: 0 },
   lastSeen: { type: Date, default: Date.now },
@@ -84,13 +85,15 @@ Artist.statics.foc = function(name, cb) {
 
 User.statics.foc = function(id, name, cb) {
   u = this;
+  lowername=name.toLowerCase();
   u.findById(id, function(err,docs) {
     if (docs) {
       cb(err,docs);
     } else {
       var i = new UserModel({
         _id: id,
-        name: name
+        name: name,
+        lowername: lowername
       });
       i.save(function(err) {
         cb(err,i);
@@ -113,6 +116,22 @@ Play.statics.foc = function(id, cb) {
     }
   });
 };
+
+// Returns a play with the DJ and Song populated - need to get artist if needed
+Play.statics.getPlay = function(id, cb) {
+  p=this;
+  p.findById(id).populate('dj').populate('song')
+    .run(function(err,doc) {
+      cb(err,doc);
+  });
+}
+
+Song.statics.getSong = function(id, cb) {
+  s = this;
+  s.findById(id).populate('artist').run(function(err,doc) {
+    cb(err,doc);
+  });
+}
 
 var UserModel = mongoose.model('User', User);
 var ArtistModel = mongoose.model('Artist', Artist);

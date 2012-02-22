@@ -254,7 +254,7 @@ bot.on('speak', function (data) {
     if (res.length == 3 && res[2]) {
       args=res[2].trim();
     }
-    doCommand(com,args,'C',null,data.userid);
+    doCommand(com,args,'C',name,data.userid);
   }
 
   if (text.match(/^\/dance$/)) {
@@ -361,7 +361,7 @@ function doCommand(command, args, st, source, userid) {
       var l_d = new Date() - lastbs;
       if (l_d < (2* 60 * 1000)) { return; }
       lastbs = new Date();
-      emote('C',null,'Thanks for the botsnack '+ users[userid].name);
+      emote('C',null,'Thanks for the botsnack ' + source);
       doDance(userid);
       return;
     case 'version':
@@ -369,6 +369,12 @@ function doCommand(command, args, st, source, userid) {
       return;
     case 'recordartist':
       doRecordArtist(st, source);
+      return;
+    case 'myrecord':
+      doUserRecord(st, source, userid);
+      return;
+    case 'seen':
+      doSeen(st, source, args);
       return;
   }
 
@@ -387,6 +393,53 @@ function doCommand(command, args, st, source, userid) {
   }
 }
 
+function doSeen(st, source, args) {
+  name=args.toLowerCase();
+  u=findUser(name);
+  if (u!=null) {
+    emote(st, source, args + ' is here right now!  Last Active: ' +
+        u.lastActive);
+    return;
+  } else {
+    User.findOne({ lowername: name }, ['lastSeen','lastActive','_id'],
+        function(err,docs) {
+          if (docs) {
+            u=docs;
+            emote(st, source, 'I last saw ' + args + ': ' + 
+              docs.lastSeen.toLocaleString() + ' and they were last active: ' +
+              docs.lastActive.toLocaleString());
+          } else {
+            emote(st, source, 'I have no record of ' + args);
+          }
+        });
+  }
+}
+
+
+function doUserRecord(st, source, userid) {
+  Play.where('dj',userid).sort('score',-1, 'played',1)
+    .limit(1).select('_id').run(function(err,doc) {
+      log(err);
+      if (doc) {
+        p=doc[0];
+        Play.getPlay(p._id, function(err,doc) {
+          log(err);
+          p=doc;
+          Song.getSong(p.song._id, function(err,doc) {
+            log(err);
+            s=doc;
+            emote(st,source,source + ' - your record play: ' 
+              + p.song.name + ' by ' + s.artist.name 
+              + ' with a combined score of ' + p.score);
+          });
+        });
+      } else {
+        emote(st,source,source + ' - I have no record of you');
+      }
+    });
+}
+
+
 function doRecordArtist(st, source) {
   Artist.where('ups').gt(0).sort('ups',-1,'downs',1).limit(1)
     .run(function(err,doc) {
@@ -399,7 +452,6 @@ function doRecordArtist(st, source) {
   return;
 
 }
-
 
 function doDance(userid) {
   if (!isop(userid) && !ismod(userid) && dance == false) {
@@ -416,22 +468,18 @@ function doDance(userid) {
 
 function doRecord(st, source) {
   Play.where('score').gt(0).sort('score',-1, 'played',1)
-    .limit(1).run(function(err,doc) {
+    .limit(1).select('_id').run(function(err,doc) {
       log(err);
       p=doc[0];
-      User.findById(p.dj, function(err,doc) {
+      Play.getPlay(p._id, function(err,doc) {
         log(err);
-        d=doc;
-        Song.findById(p.song, function(err, doc) {
+        p=doc;
+        Song.getSong(p.song._id, function(err,doc) {
           log(err);
           s=doc;
-          Artist.findById(s.artist, function(err, doc) {
-            log(err);
-            a=doc;
-            emote(st,source,'Record Play: ' + d.name + ' played ' 
-              + s.name + ' by ' + a.name + ' with a combined score of '
-              + p.score);
-          });
+          emote(st,source,'Record Play: ' + p.dj.name + ' played ' 
+            + p.song.name + ' by ' + s.artist.name 
+            + ' with a combined score of ' + p.score);
         });
       });
     });
@@ -541,6 +589,7 @@ function endSong() {
       uid=us._id;
       if (users.hasOwnProperty(uid)) {
         us.lastActive=users[uid].lastActive;
+        us.lowername=users[uid].name.toLowerCase();
         us.lastSeen=now;
         if (users[uid].isDj==true) {
           us.lastDj=now;
@@ -674,12 +723,22 @@ function playlistRandom() {
   }
 }
 
+function findUser(name) {
+  a=name.toLowerCase();
+  for(var u in users) {
+    if (users[u].name.toLowerCase()==a) {
+      return users[u];
+    }
+  }
+  return null;
+}
+
+
 function log(data) {
   if (data) {
     console.log("ERR: " + data);
   }
 }
-
 
 
 setInterval(checkIdle, 10000);
