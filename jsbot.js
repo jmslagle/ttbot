@@ -454,6 +454,7 @@ function endSong() {
   var artist=cs.artist;
   var artistid=null;
   var djid=cs.djid;
+  var djname=cs.djname;
   var album=cs.album;
   Artist.foc(artist, function(err, docs) {
     log(err);
@@ -461,7 +462,7 @@ function endSong() {
     Song.foc(songid, song, a, function(err, docs) {
       log(err);
       s = docs;
-      User.foc(djid, users[djid].name, function(err,docs) {
+      User.foc(djid, djname, function(err,docs) {
         log(err);
         u=docs;
         var thisplay=null;
