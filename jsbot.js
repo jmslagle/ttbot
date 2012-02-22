@@ -354,7 +354,7 @@ bot.on('speak', function (data) {
 function doCommand(command, args, st, source, userid) {
   switch(command) {
     case 'record':
-      record(st, source);
+      doRecord(st, source);
       return;
     case 'botsnack':
       if (st != 'C') return; // Only do botsnacks in public
@@ -366,6 +366,9 @@ function doCommand(command, args, st, source, userid) {
       return;
     case 'version':
       emote(st,source,'JSBot by jslagle - version ' + botVersion);
+      return;
+    case 'recordartist':
+      doRecordArtist(st, source);
       return;
   }
 
@@ -384,6 +387,20 @@ function doCommand(command, args, st, source, userid) {
   }
 }
 
+function doRecordArtist(st, source) {
+  Artist.where('ups').gt(0).sort('ups',-1,'downs',1).limit(1)
+    .run(function(err,doc) {
+      log(err);
+      a=doc[0];
+      emote(st, source, 'Record Artist: ' + a.name + ' with ' + a.ups +
+        ' up votes, ' + a.downs + ' down votes, ' + a.snags + ' snags ' +
+        ' and ' + a.plays + ' plays');
+    });
+  return;
+
+}
+
+
 function doDance(userid) {
   if (!isop(userid) && !ismod(userid) && dance == false) {
     return;
@@ -397,7 +414,7 @@ function doDance(userid) {
   voteup=true;
 }
 
-function record(st, source) {
+function doRecord(st, source) {
   Play.where('score').gt(0).sort('score',-1, 'played',1)
     .limit(1).run(function(err,doc) {
       log(err);
