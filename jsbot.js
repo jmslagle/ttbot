@@ -46,7 +46,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012022201';
+var botVersion = 'JSBot 2012022301';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -82,7 +82,7 @@ bot.on('tcpMessage', function (socket, msg) {
   } else if (msg.match(/^users$/)) {
     var now = new Date();
     for(var u in users) {
-      socket.write(users[u].name + ' Idle: ' + 
+      socket.write(users[u].name + ' Idle: ' +
           ((now - users[u].lastActive)/1001) + ' Dj: '
           + users[u].isDj + '\n');
     }
@@ -94,12 +94,12 @@ bot.on('tcpMessage', function (socket, msg) {
     var now = new Date();
     for(var u in users) {
       if (users[u].isDj == true) {
-        socket.write(users[u].name + ' Idle: ' + 
+        socket.write(users[u].name + ' Idle: ' +
             ((now - users[u].lastActive)/1000) + ' Warns: '
            + users[u].warns.length + '\n');
       }
     }
-  } 
+  }
 });
 
 bot.on('httpRequest', function (req,res) {
@@ -138,7 +138,7 @@ bot.on('newsong', function(data) {
   newSong(data);
 
   if (amdj) {
-    setTimeout(function() { bot.vote('up'); }, 
+    setTimeout(function() { bot.vote('up'); },
         2750 + (Math.floor(Math.random()*16)*1000));
   }
 
@@ -158,7 +158,6 @@ bot.on('roomChanged', function(data) {
     us.lastActive = new Date();
     us.isDj = false;
     us.warns = [];
-    us.lastWarn = false;
     users[us.userid] = us;
     console.log('User: ' + us.name);
   }
@@ -225,7 +224,6 @@ bot.on('registered', function (data) {
   var us=data.user[0];
   us.isDj = false;
   us.warns = [];
-  us.lastWarn = false;
   us.lastActive = new Date();
   users[us.userid] = us;
   console.log("Join: " + us.name);
@@ -241,13 +239,13 @@ bot.on('speak', function (data) {
   // Get the data
   var name = data.name;
   var text = data.text;
-
   var now = new Date();
 
   updateActivity(data.userid);
 
   console.log(now + ' chat: ' + name + ': ' + text);
-  // Respond to "botsnack" command
+
+  // Main command loop
   if (res=text.match(/^.j (\w+)( .*)?$/)) {
     var com=res[1].trim().toLowerCase();
     var args='';
@@ -259,96 +257,11 @@ bot.on('speak', function (data) {
 
   if (text.match(/^\/dance$/)) {
     doDance(data.userid);
-  } else if (text.match(/^\.j sstoggle$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      saystats = !saystats;
-      bot.speak('Saystats set to: ' + saystats);
-    }
-  } else if (text.match(/^\.j dance$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      dance = !dance;
-      bot.speak('Dance set to: ' + dance);
-    }
-  } else if (text.match(/^\.j doidle$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      doidle = !doidle;
-      bot.speak('Idle announcements set to: ' + doidle);
-    }
-  } else if (text.match(/^\.j idleenforce$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      idleenforce = !idleenforce;
-      bot.speak('Idle Enforcement set to: ' + idleenforce);
-    }
-  } else if (text.match(/^\.j idleset$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      bot.speak("Idle Warn: " + config.idlewarn + " Idle Limit: "
-          + config.idlelimit + " Idle Reset: " + config.idlereset
-          + " Idle Kick: " + config.idlekick + " Min DJS: " + config.mindjs);
-    }
-  } else if (text.match(/^\.j djs$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      var now = new Date();
-      for(var u in users) {
-        if (users[u].isDj == true) {
-          bot.speak(users[u].name + ' - Id: ' +
-              (Math.round((now - users[u].lastActive)/1000)) + ' Wa: '
-              + users[u].warns.length + '');
-        }
-      }
-    }
-  } else if (text.match(/^\.j djup$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      bot.speak('Yay!  I like to DJ!');
-      bot.addDj();
-    }
-  } else if (text.match(/^\.j djdown$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      bot.speak('Aww.  Down I go.');
-      bot.remDj();
-    }
-  } else if (text.match(/^\.j djqueue$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      bot.roomInfo(true, function(data) {
-        var newSong = data.room.metadata.current_song._id;
-        var newSongName = data.room.metadata.current_song.metadata.song;
-        bot.playlistAdd(newSong);
-        bot.speak('Added ' + newSongName + ' to my queue');
-      });
-    }
-  } else if (text.match(/^\.j djskip$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      bot.speak('Sorry you dont like my song.');
-      bot.stopSong();
-    }
-  } else if (text.match(/^\.j djshuffle$/)) {
-    bot.speak('Shuffling my playlist');
-    playlistRandom();
   } else if (text.match(/^\/q/)) {
     bot.speak('No queues in here, fastest fingers when a DJ decides to step down');
-  } else if (text.match(/^\.j djannounce (.*)$/)) {
-    if (isop(data.userid) || ismod(data.userid)) {
-      var com = text.match(/^\.j djannounce (.*)$/)[1];
-      if (com.split(/\s+/)[0] == 'off') {
-        bot.speak('DJ Announce turned off');
-        djannounce = false;
-      } else {
-        bot.speak('DJ Announce set to: ' + com);
-        djannounce = com;
-      }
-    }
-  } else if (text.match(/^\.j? ?rules$/)) {
-    var l_d = new Date() - lastrules;
-    if (l_d < (2* 60 * 1000)) { return; }
-    lastrules = new Date();
-
-    bot.speak('Room Rules: 1) No AFK DJ >15min or 9Min three times in two hours.  2) 88-01 Alternative with a 90s sound.');
-    setTimeout(function() {
-      bot.speak('3) DJs must be available, and must support (awesome) every song. 4) All Weezer and Foo Fighters allowed');
-    }, 250);
-    setTimeout(function() {
-      bot.speak('5) No Spam, Creed or Rap/Hip Hop (Except Beastie Boys) See http://on.fb.me/tRcZZu for more info');
-    }, 500);
-  } 
+  } else if (text.match(/^\.rules$/)) {
+    doCommand('rules','','C',name,data.userid);
+  }
 });
 
 function doCommand(command, args, st, source, userid) {
@@ -376,10 +289,89 @@ function doCommand(command, args, st, source, userid) {
     case 'seen':
       doSeen(st, source, args);
       return;
+    case 'rules':
+      var l_d = new Date() - lastrules;
+      if (l_d < (2* 60 * 1000)) { return; }
+      lastrules = new Date();
+
+      bot.speak('Room Rules: 1) No AFK DJ >15min or 9Min three times in two hours.  2) 88-01 Alternative with a 90s sound.');
+      setTimeout(function() {
+        bot.speak('3) DJs must be available, and must support (awesome) every song. 4) All Weezer and Foo Fighters allowed');
+      }, 250);
+      setTimeout(function() {
+        bot.speak('5) No Spam, Creed or Rap/Hip Hop (Except Beastie Boys) See http://on.fb.me/tRcZZu for more info');
+      }, 500);
+      return;
   }
 
   // Mod level commands
   if (isop(userid) || ismod(userid) || st == 'S') {
+    switch(command) {
+      case 'sstoggle':
+        saystats = !saystats;
+        bot.speak('Saystats set to: ' + saystats);
+        return;
+      case 'dance':
+        dance = !dance;
+        bot.speak('Dance set to: ' + dance);
+        return;
+      case 'idlewarn':
+        doidle = !doidle;
+        bot.speak('Idle announcements set to: ' + doidle);
+        return;
+      case 'idleenforce':
+        idleenforce = !idleenforce;
+        bot.speak('Idle Enforcement set to: ' + idleenforce);
+        return;
+      case 'idlesettings':
+        bot.speak("Idle Warn: " + config.idlewarn + " Idle Limit: "
+          + config.idlelimit + " Idle Reset: " + config.idlereset
+          + " Idle Kick: " + config.idlekick + " Min DJS: " + config.mindjs);
+        return;
+      case 'djs':
+        var now = new Date();
+        for(var u in users) {
+          if (users[u].isDj == true) {
+            bot.speak(users[u].name + ' - Id: ' +
+                (Math.round((now - users[u].lastActive)/1000)) + ' Wa: '
+                + users[u].warns.length + '');
+          }
+        }
+        return;
+      case 'djup':
+        bot.speak('Yay!  I like to DJ!');
+        bot.addDj();
+        return;
+      case 'djdown':
+        bot.speak('Aww.  Down I go.');
+        bot.remDj();
+        return;
+      case 'djqueue':
+        bot.roomInfo(true, function(data) {
+          var newSong = data.room.metadata.current_song._id;
+          var newSongName = data.room.metadata.current_song.metadata.song;
+          bot.playlistAdd(newSong);
+          bot.speak('Added ' + newSongName + ' to my queue');
+        });
+        return;
+      case 'djskip':
+        bot.speak('Sorry you dont like my song.');
+        bot.stopSong();
+        return;
+      case 'djshuffle':
+        bot.speak('Shuffling my playlist');
+        playlistRandom();
+        return;
+      case 'djannounce':
+        if (args.split(/\s+/)[0] == 'off') {
+          bot.speak('DJ Announce turned off');
+          djannounce = false;
+        } else {
+          bot.speak('DJ Announce set to: ' + args);
+          djannounce = args;
+        }
+        return;
+    }
   }
 
   // Op level commands
@@ -405,7 +397,7 @@ function doSeen(st, source, args) {
         function(err,docs) {
           if (docs) {
             u=docs;
-            emote(st, source, 'I last saw ' + args + ': ' + 
+            emote(st, source, 'I last saw ' + args + ': ' +
               docs.lastSeen.toLocaleString() + ' and they were last active: ' +
               docs.lastActive.toLocaleString());
           } else {
@@ -428,8 +420,8 @@ function doUserRecord(st, source, userid) {
           Song.getSong(p.song._id, function(err,doc) {
             log(err);
             s=doc;
-            emote(st,source,source + ' - your record play: ' 
-              + p.song.name + ' by ' + s.artist.name 
+            emote(st,source,source + ' - your record play: '
+              + p.song.name + ' by ' + s.artist.name
               + ' with a combined score of ' + p.score);
           });
         });
@@ -477,8 +469,8 @@ function doRecord(st, source) {
         Song.getSong(p.song._id, function(err,doc) {
           log(err);
           s=doc;
-          emote(st,source,'Record Play: ' + p.dj.name + ' played ' 
-            + p.song.name + ' by ' + s.artist.name 
+          emote(st,source,'Record Play: ' + p.dj.name + ' played '
+            + p.song.name + ' by ' + s.artist.name
             + ' with a combined score of ' + p.score);
         });
       });
@@ -625,8 +617,7 @@ function ismod (userid) {
 function updateActivity(userid) {
   if (userid && users.hasOwnProperty(userid)) {
     users[userid].lastActive = new Date();
-    users[userid].lastWarn = false;
-  }
+  } 
 }
 
 function enforceRoom() {
@@ -637,17 +628,10 @@ function enforceRoom() {
     // Do the idle check so we can just compare
     checkIdle();
     if (now - users[u].lastActive > (config.idlekick * 60000)) {
-      if (doidle == true && users[u].lastWarn == false) {
-        bot.speak("Sorry " + "@" + users[u].name + " you're idle more than " +
-            config.idlekick + " minutes.  Last warning.");
-        users[u].lastWarn = true;
-      }
       if (idleenforce == true) {
         console.log("Idle Kick: " + users[u].name);
-        if (now - users[u].lastActive > (config.idlekick * 60000 * 1.5)) {
-          bot.remDj(users[u].userid);
-          bot.speak("Removing " + users[u].name + " for inactivity");
-        }
+        bot.remDj(users[u].userid);
+        bot.speak("Removing " + users[u].name + " for inactivity");
       }
       continue;
     }
@@ -697,11 +681,11 @@ function checkIdle() {
               var warn = "Third";
               break;
             default:
-              var warn = users[u].warns.length + "th"; 
+              var warn = users[u].warns.length + "th";
               break;
           }
           if (doidle == true) {
-            bot.speak("@" + users[u].name + " - " + warn + 
+            bot.speak("@" + users[u].name + " - " + warn +
                 " warning - idle > " + config.idlewarn + " mins " +
                "in " + config.idlereset/60 + " hours.  Please be active "+
                config.idlewarn + "x" + config.idlelimit);
