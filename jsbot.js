@@ -296,7 +296,7 @@ function doCommand(command, args, source) {
       if (l_d < (2* 60 * 1000)) { return; }
       lastbs = new Date();
       emote(source,'Thanks for the botsnack ' + source.name);
-      doDance(source.userid);
+      doDance(source);
       return;
     case 'version':
       emote(source,'JSBot by jslagle - version ' + botVersion);
@@ -473,6 +473,9 @@ function doUserRecord(source) {
       log(err);
       if (doc) {
         p=doc[0];
+        if (!p) {
+          emote(source,source + ' - I have no record of you');
+        }
         Play.getPlay(p._id, function(err,doc) {
           log(err);
           p=doc;
