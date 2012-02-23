@@ -59,6 +59,7 @@ bot.on('tcpMessage', function (socket, msg) {
 
   msg=msg.trim().replace(/\r\n/,'');
   console.log('Socket: ' + msg);
+
   res=msg.match(/^(\w+)( .*)?$/);
   var com=res[1].trim().toLowerCase();
   var args='';
@@ -67,22 +68,6 @@ bot.on('tcpMessage', function (socket, msg) {
   }
   doCommand(com,args,s);
 
-  if (msg.match(/^say (.*)$/)) {
-    var com = msg.match(/^say (.*)$/)[1];
-    bot.speak(com);
-  } else if (msg.match(/^warn (\w*) (\w*)$/)) {
-    var id = msg.match(/^warn (\w*) (\w*)$/)[1];
-    var warn = msg.match(/^warn (\w*) (\w*)$/)[2];
-    socket.write('Setting warn on ' + id + ' to ' + warn);
-    for (var x=0; x<warn; x++) {
-      users[id].warns.push(new Date());
-    }
-  } else if (msg.match(/^avatar (.*)$/)) {
-    var av = msg.match(/^avatar (.*)$/)[1];
-    bot.setAvatar(av);
-  } else if (msg.match(/^enforce$/)) {
-    enforceRoom();
-  }
 });
 
 bot.on('httpRequest', function (req,res) {
@@ -418,6 +403,38 @@ function doCommand(command, args, source) {
       case 'quit':
         bot.speak('So long and thanks for all the fish.');
         process.exit();
+        return;
+      case 'kick':
+        user=args.split(/\s+/)[0];
+        reason=args.slice(user.length).trim();
+        u=findUser(user);
+        if (u) {
+          bot.bootUser(u.userid,reason);
+        }
+        return;
+      case 'lame':
+        bot.vote('down');
+        voteup=true;
+        return;
+      case 'enforce':
+        enforceRoom();
+        return;
+      case 'avatar':
+        bot.setAvatar(args);
+        return;
+      case 'say':
+        bot.speak(args);
+        return;
+      case 'warn':
+        user=args.split(/\s+/)[0];
+        warn=args.slice(user.length).trim();
+        u=findUser(user);
+        if (u) {
+          for (var x=0; x<warn; x++) {
+            u.warns.push(new Date());
+          }
+          emote(source,'Setting warn on ' + user + ' to ' + warn);
+        }
         return;
     }
   }
