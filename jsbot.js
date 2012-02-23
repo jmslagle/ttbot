@@ -46,7 +46,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012022301';
+var botVersion = 'JSBot 2012022302';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -283,11 +283,7 @@ bot.on('pmmed', function (data) {
     doCommand(com,args,'P',data.senderid,data.senderid);
   }
 
-  if (text.match(/^\/dance$/)) {
-    doDance(data.senderid);
-  } else if (text.match(/^\/q/)) {
-    bot.speak('No queues in here, fastest fingers when a DJ decides to step down');
-  } else if (text.match(/^\.rules$/)) {
+  if (text.match(/^\.rules$/)) {
     doCommand('rules','','P',data.senderid,data.senderid);
   }
 });
@@ -339,9 +335,11 @@ function doCommand(command, args, st, source, userid) {
       doSeen(st, source, args);
       return;
     case 'rules':
-      var l_d = new Date() - lastrules;
-      if (l_d < (2* 60 * 1000)) { return; }
-      lastrules = new Date();
+      if (st == 'C') {
+        var l_d = new Date() - lastrules;
+        if (l_d < (2* 60 * 1000)) { return; }
+        lastrules = new Date();
+      }
 
       emote(st,source,'Room Rules: 1) No AFK DJ >15min or 9Min three times in two hours.  2) 88-01 Alternative with a 90s sound.');
       setTimeout(function() {
