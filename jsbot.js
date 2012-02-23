@@ -46,7 +46,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012022303';
+var botVersion = 'JSBot 2012022304';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -57,15 +57,17 @@ bot.on('tcpMessage', function (socket, msg) {
     socket: socket
   };
 
-  if (msg == 'version') {
-    socket.write('>> '+myScriptVersion+'\n');
-  } else if (msg == 'bop') {
-    bot.vote('up');
-  } else if (msg == 'lame') {
-    bot.vote('down');
-  } else if (msg == 'troll') {
-    bot.speak('Please don\'t feed the troll.');
-  } else if (msg.match(/^say (.*)$/)) {
+  msg=msg.trim().replace(/\r\n/,'');
+  console.log('Socket: ' + msg);
+  res=msg.match(/^(\w+)( .*)?$/);
+  var com=res[1].trim().toLowerCase();
+  var args='';
+  if (res.length == 3 && res[2]) {
+    args=res[2].trim();
+  }
+  doCommand(com,args,s);
+
+  if (msg.match(/^say (.*)$/)) {
     var com = msg.match(/^say (.*)$/)[1];
     bot.speak(com);
   } else if (msg.match(/^warn (\w*) (\w*)$/)) {
@@ -78,34 +80,8 @@ bot.on('tcpMessage', function (socket, msg) {
   } else if (msg.match(/^avatar (.*)$/)) {
     var av = msg.match(/^avatar (.*)$/)[1];
     bot.setAvatar(av);
-  } else if (msg.match(/^songadd (.*)$/)) {
-    var s = msg.match(/^songadd (.*)$/)[1];
-    bot.playlistAdd(s);
-  } else if (msg.match(/^snag$/)) {
-    bot.roomInfo(true, function(data) {
-      var newSong = data.room.metadata.current_song._id;
-      bot.playlistAdd(newSong);
-    });
-  } else if (msg.match(/^users$/)) {
-    var now = new Date();
-    for(var u in users) {
-      socket.write(users[u].name + ' Idle: ' +
-          ((now - users[u].lastActive)/1001) + ' Dj: '
-          + users[u].isDj + '\n');
-    }
-  } else if (msg.match(/^idle$/)) {
-    checkIdle();
   } else if (msg.match(/^enforce$/)) {
     enforceRoom();
-  } else if (msg.match(/^djs$/)) {
-    var now = new Date();
-    for(var u in users) {
-      if (users[u].isDj == true) {
-        socket.write(users[u].name + ' Idle: ' +
-            ((now - users[u].lastActive)/1000) + ' Warns: '
-           + users[u].warns.length + '\n');
-      }
-    }
   }
 });
 
