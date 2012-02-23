@@ -46,10 +46,17 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012022302';
+var botVersion = 'JSBot 2012022303';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
+  var s = {
+    type: 'S',
+    name: 'TCP User',
+    userid: 0,
+    socket: socket
+  };
+
   if (msg == 'version') {
     socket.write('>> '+myScriptVersion+'\n');
   } else if (msg == 'bop') {
@@ -238,6 +245,12 @@ bot.on('deregistered', function (data) {
 bot.on('speak', function (data) {
   // Get the data
   var name = data.name;
+  var s = {
+    type: 'C',
+    name: data.name,
+    userid: data.userid
+  };
+
   var text = data.text;
   var now = new Date();
 
@@ -252,26 +265,48 @@ bot.on('speak', function (data) {
     if (res.length == 3 && res[2]) {
       args=res[2].trim();
     }
-    doCommand(com,args,'C',name,data.userid);
+    doCommand(com,args,s);
   }
 
   if (text.match(/^\/dance$/)) {
-    doDance(data.userid);
+    doDance(s);
   } else if (text.match(/^\/q/)) {
     bot.speak('No queues in here, fastest fingers when a DJ decides to step down');
   } else if (text.match(/^\.rules$/)) {
-    doCommand('rules','','C',name,data.userid);
+    doCommand('rules','',s);
   }
 });
 
 bot.on('pmmed', function (data) {
-  // Get the data
+  // Get the dddata
   var text = data.text;
+
+  var uid = data.senderid;
+  name = 'User';
+  if (users.hasOwnProperty(uid)) {
+    name = users[uid].name;
+  } else {
+    Users.findById(uid, function(err, doc) {
+      log(err);
+      if (doc) {
+        name=doc.name;
+      } else {
+        bot.getProfile(uid,function(data) {
+          name=data.name;
+        });
+      }
+    });
+  }
+  var s = {
+    type: 'P',
+    name: name,
+    userid: uid
+  };
   var now = new Date();
 
-  updateActivity(data.userid);
+  updateActivity(uid);
 
-  console.log(now + ' pm: ' + data.senderid + ': ' + text);
+  console.log(now + ' pm: ' + name + ': ' + text);
 
   // Main command loop
   if (res=text.match(/^.j (\w+)( .*)?$/)) {
@@ -280,98 +315,78 @@ bot.on('pmmed', function (data) {
     if (res.length == 3 && res[2]) {
       args=res[2].trim();
     }
-    doCommand(com,args,'P',data.senderid,data.senderid);
+    doCommand(com,args,s);
   }
 
   if (text.match(/^\.rules$/)) {
-    doCommand('rules','','P',data.senderid,data.senderid);
+    doCommand('rules','',s);
   }
 });
 
-function doCommand(command, args, st, source, userid) {
-  switch(st) {
-    case 'C':
-      name = source;
-      break;
-    case 'S':
-      name = 'User';
-      break;
-    case 'P':
-      name = 'User';
-      if (users.hasOwnProperty(source)) {
-        name = users[source].name;
-      } else {
-        Users.findById(source, function(err, doc) {
-          log(err);
-          if (doc) {
-            name=doc.name;
-          }
-        });
-      }
-  }
+function doCommand(command, args, source) {
 
   switch(command) {
     case 'record':
-      doRecord(st, source);
+      doRecord(source);
       return;
     case 'botsnack':
-      if (st != 'C') return; // Only do botsnacks in public
+      if (source.type != 'C') return; // Only do botsnacks in public
       var l_d = new Date() - lastbs;
       if (l_d < (2* 60 * 1000)) { return; }
       lastbs = new Date();
-      emote('C',null,'Thanks for the botsnack ' + name);
-      doDance(userid);
+      emote(source,'Thanks for the botsnack ' + source.name);
+      doDance(source.userid);
       return;
     case 'version':
-      emote(st,source,'JSBot by jslagle - version ' + botVersion);
+      emote(source,'JSBot by jslagle - version ' + botVersion);
       return;
     case 'recordartist':
-      doRecordArtist(st, source);
+      doRecordArtist(source);
       return;
     case 'myrecord':
-      doUserRecord(st, source, userid);
+      doUserRecord(source);
       return;
     case 'seen':
-      doSeen(st, source, args);
+      doSeen(source, args);
       return;
     case 'rules':
-      if (st == 'C') {
+      if (source.type == 'C') {
         var l_d = new Date() - lastrules;
         if (l_d < (2* 60 * 1000)) { return; }
         lastrules = new Date();
       }
 
-      emote(st,source,'Room Rules: 1) No AFK DJ >15min or 9Min three times in two hours.  2) 88-01 Alternative with a 90s sound.');
+      emote(source,'Room Rules: 1) No AFK DJ >15min or 9Min three times in two hours.  2) 88-01 Alternative with a 90s sound.');
       setTimeout(function() {
-        emote(st,source,'3) DJs must be available, and must support (awesome) every song. 4) All Weezer and Foo Fighters allowed');
+        emote(source,'3) DJs must be available, and must support (awesome) every song. 4) All Weezer and Foo Fighters allowed');
       }, 250);
       setTimeout(function() {
-        emote(st,source,'5) No Spam, Creed or Rap/Hip Hop (Except Beastie Boys) See http://on.fb.me/tRcZZu for more info');
+        emote(source,'5) No Spam, Creed or Rap/Hip Hop (Except Beastie Boys) See http://on.fb.me/tRcZZu for more info');
       }, 500);
       return;
   }
 
   // Mod level commands
-  if (isop(userid) || ismod(userid) || st == 'S') {
+  if (isop(source.userid) || ismod(source.userid) || source.type == 'S') {
     switch(command) {
       case 'sstoggle':
         saystats = !saystats;
-        emote(st,source,'Saystats set to: ' + saystats);
+        emote(source,'Saystats set to: ' + saystats);
         return;
       case 'dance':
         dance = !dance;
-        emote(st,source,'Dance set to: ' + dance);
+        emote(source,'Dance set to: ' + dance);
         return;
       case 'idlewarn':
         doidle = !doidle;
-        emote(st,source,'Idle announcements set to: ' + doidle);
+        emote(source,'Idle announcements set to: ' + doidle);
         return;
       case 'idleenforce':
         idleenforce = !idleenforce;
-        emote(st,source,'Idle Enforcement set to: ' + idleenforce);
+        emote(source,'Idle Enforcement set to: ' + idleenforce);
         return;
       case 'idlesettings':
-        emote(st,source,"Idle Warn: " + config.idlewarn + " Idle Limit: "
+        emote(source,"Idle Warn: " + config.idlewarn + " Idle Limit: "
           + config.idlelimit + " Idle Reset: " + config.idlereset
           + " Idle Kick: " + config.idlekick + " Min DJS: " + config.mindjs);
         return;
@@ -379,7 +394,7 @@ function doCommand(command, args, st, source, userid) {
         var now = new Date();
         for(var u in users) {
           if (users[u].isDj == true) {
-            emote(st,source,users[u].name + ' - Id: ' +
+            emote(source,users[u].name + ' - Id: ' +
                 (Math.round((now - users[u].lastActive)/1000)) + ' Wa: '
                 + users[u].warns.length + '');
           }
@@ -398,23 +413,23 @@ function doCommand(command, args, st, source, userid) {
           var newSong = data.room.metadata.current_song._id;
           var newSongName = data.room.metadata.current_song.metadata.song;
           bot.playlistAdd(newSong);
-          emote(st,source,'Added ' + newSongName + ' to my queue');
+          emote(source,'Added ' + newSongName + ' to my queue');
         });
         return;
       case 'djskip':
-        emote(st,source,'Sorry you dont like my song.');
+        emote(source,'Sorry you dont like my song.');
         bot.stopSong();
         return;
       case 'djshuffle':
-        emote(st,source,'Shuffling my playlist');
+        emote(source,'Shuffling my playlist');
         playlistRandom();
         return;
       case 'djannounce':
         if (args.split(/\s+/)[0] == 'off') {
-          emote(st,source,'DJ Announce turned off');
+          emote(source,'DJ Announce turned off');
           djannounce = false;
         } else {
-          emote(st,source,'DJ Announce set to: ' + args);
+          emote(source,'DJ Announce set to: ' + args);
           djannounce = args;
         }
         return;
@@ -422,7 +437,7 @@ function doCommand(command, args, st, source, userid) {
   }
 
   // Op level commands
-  if (isop(userid) || st == 'S') {
+  if (isop(source.userid) || source.type == 'S') {
     switch(command) {
       case 'quit':
         bot.speak('So long and thanks for all the fish.');
@@ -432,11 +447,11 @@ function doCommand(command, args, st, source, userid) {
   }
 }
 
-function doSeen(st, source, args) {
+function doSeen(source, args) {
   name=args.toLowerCase();
   u=findUser(name);
   if (u!=null) {
-    emote(st, source, args + ' is here right now!  Last Active: ' +
+    emote(source, args + ' is here right now!  Last Active: ' +
         u.lastActive);
     return;
   } else {
@@ -444,19 +459,23 @@ function doSeen(st, source, args) {
         function(err,docs) {
           if (docs) {
             u=docs;
-            emote(st, source, 'I last saw ' + args + ': ' +
+            emote(source, 'I last saw ' + args + ': ' +
               docs.lastSeen.toLocaleString() + ' and they were last active: ' +
               docs.lastActive.toLocaleString());
           } else {
-            emote(st, source, 'I have no record of ' + args);
+            emote(source, 'I have no record of ' + args);
           }
         });
   }
 }
 
 
-function doUserRecord(st, source, userid, name) {
-  Play.where('dj',userid).sort('score',-1, 'played',1)
+function doUserRecord(source) {
+  if (source.type=='S') {
+    emote(source,'I don\'t know your userid');
+    return;
+  }
+  Play.where('dj',source.userid).sort('score',-1, 'played',1)
     .limit(1).select('_id').run(function(err,doc) {
       log(err);
       if (doc) {
@@ -467,28 +486,24 @@ function doUserRecord(st, source, userid, name) {
           Song.getSong(p.song._id, function(err,doc) {
             log(err);
             s=doc;
-            emote(st,source,p.dj.name + ' - your record play: '
+            emote(source,p.dj.name + ' - your record play: '
               + p.song.name + ' by ' + s.artist.name
               + ' with a combined score of ' + p.score);
           });
         });
       } else {
-        if (st=='C') {
-          emote(st,source,source + ' - I have no record of you');
-        } else {
-          emote(st, source, 'I have no record of you');
-        }
+        emote(source,source + ' - I have no record of you');
       }
     });
 }
 
 
-function doRecordArtist(st, source) {
+function doRecordArtist(source) {
   Artist.where('ups').gt(0).sort('ups',-1,'downs',1).limit(1)
     .run(function(err,doc) {
       log(err);
       a=doc[0];
-      emote(st, source, 'Record Artist: ' + a.name + ' with ' + a.ups +
+      emote(source, 'Record Artist: ' + a.name + ' with ' + a.ups +
         ' up votes, ' + a.downs + ' down votes, ' + a.snags + ' snags ' +
         ' and ' + a.plays + ' plays');
     });
@@ -496,8 +511,8 @@ function doRecordArtist(st, source) {
 
 }
 
-function doDance(userid) {
-  if (!isop(userid) && !ismod(userid) && dance == false) {
+function doDance(source) {
+  if (!isop(source.userid) && !ismod(source.userid) && dance == false) {
     return;
   }
   if (!voteup) {
@@ -509,7 +524,7 @@ function doDance(userid) {
   voteup=true;
 }
 
-function doRecord(st, source) {
+function doRecord(source) {
   Play.where('score').gt(0).sort('score',-1, 'played',1)
     .limit(1).select('_id').run(function(err,doc) {
       log(err);
@@ -520,7 +535,7 @@ function doRecord(st, source) {
         Song.getSong(p.song._id, function(err,doc) {
           log(err);
           s=doc;
-          emote(st,source,'Record Play: ' + p.dj.name + ' played '
+          emote(source,'Record Play: ' + p.dj.name + ' played '
             + p.song.name + ' by ' + s.artist.name
             + ' with a combined score of ' + p.score);
         });
@@ -528,16 +543,16 @@ function doRecord(st, source) {
     });
 }
 
-function emote(st, source, msg) {
-  switch(st) {
+function emote(source, msg) {
+  switch(source.type) {
     case 'C':
       bot.speak(msg);
       break;
     case 'P':
-      bot.pm(msg, source);
+      bot.pm(msg, source.userid);
       break;
     case 'S':
-      source.write('>> ' + msg + '\n');
+      source.socket.write('>> ' + msg + '\n');
       break;
   }
 }
