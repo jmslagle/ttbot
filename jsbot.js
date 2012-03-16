@@ -426,8 +426,9 @@ function doCommand(command, args, source) {
         bot.speak(args);
         return;
       case 'warn':
-        user=args.split(/\s+/)[0];
-        warn=args.slice(user.length).trim();
+        t=args.lastIndexOf(/\s+/);
+        user=args.slice(0,t).trim();
+        warn=args.slice(t).trim();
         u=findUser(user);
         if (u) {
           for (var x=0; x<warn; x++) {
@@ -474,7 +475,8 @@ function doUserRecord(source) {
       if (doc) {
         p=doc[0];
         if (!p) {
-          emote(source,source + ' - I have no record of you');
+          emote(source,source.name + ' - I have no record of you');
+          return;
         }
         Play.getPlay(p._id, function(err,doc) {
           log(err);
