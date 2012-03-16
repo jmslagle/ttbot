@@ -46,7 +46,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012022304';
+var botVersion = 'JSBot 2012031501';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -299,7 +299,7 @@ function doCommand(command, args, source) {
       doDance(source);
       return;
     case 'version':
-      emote(source,'JSBot by jslagle - version ' + botVersion);
+      emote(source,'JSBot by jslagle - version ' + botVersion + ' https://github.com/jmslagle/ttbot');
       return;
     case 'recordartist':
       doRecordArtist(source);
