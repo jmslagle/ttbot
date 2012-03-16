@@ -307,6 +307,9 @@ function doCommand(command, args, source) {
     case 'myrecord':
       doUserRecord(source);
       return;
+    case 'mystats':
+      doUserStats(source);
+      return;
     case 'seen':
       doSeen(source, args);
       return;
@@ -471,6 +474,21 @@ function doSeen(source, args) {
   }
 }
 
+function doUserStats(source) {
+  if (source.type=='S') {
+    emote(source,'I don\'t know your userid');
+    return;
+  }
+  u=User.findById(source.userid, function(err,doc) {
+    if (doc) {
+      emote(source,source.name + ' - You have ' + doc.plays + ' plays ' +
+        ' totaling ' + doc.ups + ' ups, ' + doc.downs + ' downs, and ' +
+        doc.snags + ' snags.');
+    } else {
+      emote(source, 'I don\'t know you ' + source.name);
+    }
+  });
+}
 
 function doUserRecord(source) {
   if (source.type=='S') {
