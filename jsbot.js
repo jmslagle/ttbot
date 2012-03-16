@@ -426,11 +426,19 @@ function doCommand(command, args, source) {
         bot.speak(args);
         return;
       case 'warn':
+        u=findUser(args);
+        if (u) {
+          bot.speak('@' + args + ' - You have been officially warned. ' +
+              ' Please read the room rules');
+          u.warns.push(new Date());
+        }
+      case 'setwarn':
         t=args.lastIndexOf(/\s+/);
         user=args.slice(0,t).trim();
         warn=args.slice(t).trim();
         u=findUser(user);
         if (u) {
+          u.warns = [];
           for (var x=0; x<warn; x++) {
             u.warns.push(new Date());
           }
