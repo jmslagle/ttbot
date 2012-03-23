@@ -461,15 +461,23 @@ function doCommand(command, args, source) {
         }
         break;
       case 'mod':
+        if (source.type=='C') return;
         u=findUser(args);
         if (u) {
           bot.addModerator(u.userid);
+          emote(source,'Gave mod to ' + args);
+        } else {
+          emote(source,'User ' + args + ' not found');
         }
         break;
       case 'demod':
+        if (source.type=='C') return;
         u=findUser(args);
         if (u) {
           bot.remModerator(u.userid);
+          emote(source,'Removed mod from ' + args);
+        } else {
+          emote(source,'User not found');
         }
         break;
     }
