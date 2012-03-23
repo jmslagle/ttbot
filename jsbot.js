@@ -252,7 +252,7 @@ bot.on('pmmed', function (data) {
   if (users.hasOwnProperty(uid)) {
     name = users[uid].name;
   } else {
-    Users.findById(uid, function(err, doc) {
+    User.findById(uid, function(err, doc) {
       log(err);
       if (doc) {
         name=doc.name;
@@ -467,7 +467,7 @@ function doCommand(command, args, source) {
         }
         break;
       case 'demod':
-        u.findUser(args);
+        u=findUser(args);
         if (u) {
           bot.remModerator(u.userid);
         }
