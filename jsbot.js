@@ -28,6 +28,7 @@ var dance = config.dance;
 var doidle = config.doidle;
 var amdj = false;
 var idleenforce = config.idleenforce;
+var wantdj=false;
 
 var users = {}
 
@@ -170,6 +171,7 @@ bot.on('endsong', function (data) {
 bot.on('add_dj', function (data) {
   if (data.user[0].userid == config.USERID) {
     amdj = true;
+    wantdj = false;
   }
   users[data.user[0].userid].isDj = true;
   if (djannounce) {
@@ -182,6 +184,9 @@ bot.on('add_dj', function (data) {
 bot.on('rem_dj', function (data) {
   if (data.user[0].userid == config.USERID) {
     amdj = false;
+  }
+  if (wantdj == true) {
+    bot.addDj();
   }
   users[data.user[0].userid].isDj = false;
   djs = djs - 1;
@@ -367,6 +372,7 @@ function doCommand(command, args, source) {
       case 'djup':
         bot.speak('Yay!  I like to DJ!');
         bot.addDj();
+        wantdj=true;
         return;
       case 'djdown':
         bot.speak('Aww.  Down I go.');
@@ -448,6 +454,24 @@ function doCommand(command, args, source) {
           emote(source,'Setting warn on ' + user + ' to ' + warn);
         }
         return;
+      case 'yank':
+        u=findUser(args);
+        if (u) {
+          bot.remDj(u.userid);
+        }
+        break;
+      case 'mod':
+        u=findUser(args);
+        if (u) {
+          bot.addModerator(u.userid);
+        }
+        break;
+      case 'demod':
+        u.findUser(args);
+        if (u) {
+          bot.remModerator(u.userid);
+        }
+        break;
     }
   }
 }
