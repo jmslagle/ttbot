@@ -403,6 +403,28 @@ function doCommand(command, args, source) {
           djannounce = args;
         }
         return;
+      case 'yank':
+        u=findUser(args);
+        if (u) {
+          bot.remDj(u.userid);
+        }
+        break;
+      case 'kick':
+        user=args.split(/\s+/)[0];
+        reason=args.slice(user.length).trim();
+        u=findUser(user);
+        if (u) {
+          bot.bootUser(u.userid,reason);
+        }
+        return;
+      case 'warn':
+        u=findUser(args);
+        if (u) {
+          bot.speak('@' + args + ' - You have been officially warned. ' +
+              ' Please read the room rules');
+          u.warns.push(new Date());
+        }
+        return;
     }
   }
 
@@ -412,14 +434,6 @@ function doCommand(command, args, source) {
       case 'quit':
         bot.speak('So long and thanks for all the fish.');
         process.exit();
-        return;
-      case 'kick':
-        user=args.split(/\s+/)[0];
-        reason=args.slice(user.length).trim();
-        u=findUser(user);
-        if (u) {
-          bot.bootUser(u.userid,reason);
-        }
         return;
       case 'lame':
         bot.vote('down');
@@ -434,13 +448,6 @@ function doCommand(command, args, source) {
       case 'say':
         bot.speak(args);
         return;
-      case 'warn':
-        u=findUser(args);
-        if (u) {
-          bot.speak('@' + args + ' - You have been officially warned. ' +
-              ' Please read the room rules');
-          u.warns.push(new Date());
-        }
       case 'setwarn':
         t=args.lastIndexOf(/\s+/);
         user=args.slice(0,t).trim();
@@ -454,12 +461,6 @@ function doCommand(command, args, source) {
           emote(source,'Setting warn on ' + user + ' to ' + warn);
         }
         return;
-      case 'yank':
-        u=findUser(args);
-        if (u) {
-          bot.remDj(u.userid);
-        }
-        break;
       case 'mod':
         if (source.type=='C') return;
         u=findUser(args);
