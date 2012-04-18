@@ -47,7 +47,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012031501';
+var botVersion = 'JSBot 2012041801';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -853,7 +853,15 @@ function log(data) {
   }
 }
 
+function checkDead() {
+  var now=new Date();
+  if (now - bot._lastHeartbeat > config.dead * 60000) {
+    log('Heartbeat Expired - killing bot for reconnect');
+    process.exit(1);
+  }
+}
 
+setInterval(checkDead, 10000);
 setInterval(checkIdle, 10000);
 
 
