@@ -26,6 +26,7 @@ var djs = 0;
 var saystats = config.saystats;
 var dance = config.dance;
 var doidle = config.doidle;
+var ignore = config.ignore;
 var amdj = false;
 var idleenforce = config.idleenforce;
 var wantdj=false;
@@ -47,7 +48,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012041801';
+var botVersion = 'JSBot 2012050401';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -290,6 +291,10 @@ bot.on('pmmed', function (data) {
 });
 
 function doCommand(command, args, source) {
+
+  if isignore(source.userid) {
+    return;
+  }
 
   switch(command) {
     case 'record':
@@ -572,6 +577,9 @@ function doDance(source) {
   if (!isop(source.userid) && !ismod(source.userid) && dance == false) {
     return;
   }
+  if isignore(cs.djid) {
+    return;
+  }
   if (!voteup) {
   setTimeout(function() {
     bot.vote('up'); },
@@ -723,6 +731,14 @@ function endSong() {
   }
 }
 
+function isignore(userid) {
+  for (var i = 0; i < config.ignore.length; i++) {
+    if (userid == config.ignore[i]) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function isop (userid) {
   for (var i = 0; i < config.ops.length; i++) {
