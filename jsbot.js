@@ -292,7 +292,7 @@ bot.on('pmmed', function (data) {
 
 function doCommand(command, args, source) {
 
-  if isignore(source.userid) {
+  if (isignore(source.userid)) {
     return;
   }
 
@@ -577,7 +577,7 @@ function doDance(source) {
   if (!isop(source.userid) && !ismod(source.userid) && dance == false) {
     return;
   }
-  if isignore(cs.djid) {
+  if (isignore(cs.djid)) {
     return;
   }
   if (!voteup) {
