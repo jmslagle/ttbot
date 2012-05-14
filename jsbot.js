@@ -30,7 +30,7 @@ var ignore = config.ignore;
 var amdj = false;
 var idleenforce = config.idleenforce;
 var wantdj=false;
-
+var forcedj=false;
 var users = {}
 
 var cs = {
@@ -108,8 +108,20 @@ bot.on('newsong', function(data) {
   newSong(data);
 
   if (amdj) {
+    if (djs==5) {
+      bot.remDj();
+      bot.speak('Room at 5 DJs - hopping down');
+      amdj=false;
+    }
     setTimeout(function() { bot.vote('up'); },
         2750 + (Math.floor(Math.random()*16)*1000));
+  } else {
+    if (djs<3 && forcedj==false) {
+      bot.addDj();
+      amdj=true;
+      bot.speak('Less than 3 DJs - time to rock!');
+      bot.vote('up');
+    }
   }
 
   voteup = false;
@@ -185,6 +197,7 @@ bot.on('add_dj', function (data) {
 bot.on('rem_dj', function (data) {
   if (data.user[0].userid == config.USERID) {
     amdj = false;
+    forcedj=false;
   }
   if (wantdj == true) {
     bot.addDj();
@@ -378,6 +391,7 @@ function doCommand(command, args, source) {
         bot.speak('Yay!  I like to DJ!');
         bot.addDj();
         wantdj=true;
+        forcedj=true;
         return;
       case 'djdown':
         bot.speak('Aww.  Down I go.');
@@ -625,6 +639,7 @@ function emote(source, msg) {
 function newSong(data) {
     meta = data.room.metadata;
     var dj = meta.current_dj;
+    if (!meta.current_song) return;
     cs.artist = meta.current_song.metadata.artist;
     cs.album = meta.current_song.metadata.album;
     cs.song = meta.current_song.metadata.song;
