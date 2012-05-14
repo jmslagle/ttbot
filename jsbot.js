@@ -48,7 +48,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012050401';
+var botVersion = 'JSBot 2012051401';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
