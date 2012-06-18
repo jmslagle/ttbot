@@ -6,6 +6,7 @@ var Artist = db.Artist;
 var Song = db.Song;
 var User = db.User;
 var Play = db.Play;
+var DBConfig = db.DBConfig;
 
 var bot = new Bot(config.AUTH, config.USERID, config.ROOMID);
 bot.tcpListen(config.telport, '127.0.0.1');
@@ -31,7 +32,8 @@ var amdj = false;
 var idleenforce = config.idleenforce;
 var wantdj=false;
 var forcedj=false;
-var users = {}
+var users = {};
+var banneddj = [];
 
 var cs = {
   artist: null,
@@ -108,7 +110,7 @@ bot.on('newsong', function(data) {
   newSong(data);
 
   if (amdj) {
-    if (djs==5) {
+    if (djs==5 && forcedj==false) {
       bot.remDj();
       bot.speak('Room at 5 DJs - hopping down');
       amdj=false;
@@ -187,6 +189,10 @@ bot.on('add_dj', function (data) {
     wantdj = false;
   }
   users[data.user[0].userid].isDj = true;
+  if (isBannedDJ(data.user[0].userid)) {
+    bot.remDj(data.user[0].userid);
+    bot.speak('User ' + data.user[0].name + ' is not allowed to DJ here.');
+  }
   if (djannounce) {
     bot.speak('Hi ' + data.user[0].name + ' ' + djannounce);
   }
@@ -498,6 +504,35 @@ function doCommand(command, args, source) {
           emote(source,'Removed mod from ' + args);
         } else {
           emote(source,'User not found');
+        }
+        break;
+      case 'bandj':
+        u=findUser(args);
+        if (u) {
+          if (isBannedDJ(u.userid)) {
+            emote(source,'User ' + u.name + ' is already banned');
+            return;
+          }
+          banneddj.push(u.userid);
+          if (u.isDj == true) {
+            bot.remDj(u.userid);
+            bot.speak('User ' + u.name + ' is not allowed to DJ here.');
+          }
+          DBConfig.save('banneddj',banneddj,function(err,docs) {});
+          emote(source,'User ' + u.name + ' banned from DJing');
+        }
+        break;
+      case 'unbandj':
+        u=findUser(args);
+        if (u) {
+          if (!isBannedDJ(u.userid)) {
+            emote(source,'User ' + u.name + ' is not banned');
+          } else {
+            t = banneddj.indexOf(u.userid);
+            if (t!=-1) banneddj.splice(t, 1);
+            DBConfig.save('banneddj', banneddj, function(err,docs) {});
+            emote(source,'Unbanned ' + u.name);
+          }
         }
         break;
     }
@@ -892,6 +927,26 @@ function checkDead() {
   }
 }
 
+function jInit() {
+  c = DBConfig.getValue('banneddj', function(err, data) {
+    log(err);
+    x = data;
+    if (data=="") return;
+    banneddj=data.value;
+  });
+}
+
+function isBannedDJ (userid) {
+  var isbdj=false;
+  for (var d=0; d<banneddj.length; d++) {
+    if (banneddj[d] == userid) {
+      isbdj=true;
+    }
+  }
+  return isbdj;
+}
+
+setTimeout(jInit, 500);
 setInterval(checkDead, 10000);
 setInterval(checkIdle, 10000);
 

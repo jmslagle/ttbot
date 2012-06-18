@@ -17,6 +17,7 @@ var User = new Schema({
   snags: { type: Number, default: 0 }
 });
 
+
 var Artist = new Schema({
   name: String,
   lowername: { type: String, index: true },
@@ -45,6 +46,11 @@ var Play = new Schema({
   song: { type: Schema.ObjectId, ref: 'Song' },
   played: { type: Date, default: Date.now },
   score: { type: Number, default: 0, index: true }
+});
+
+var Config = new Schema({
+  key: { type: String, index: true },
+  value: [String],
 });
 
 Song.statics.foc = function(id, name, artistid, cb) {
@@ -133,12 +139,45 @@ Song.statics.getSong = function(id, cb) {
   });
 }
 
+Config.statics.getValue = function(key, cb) {
+  c = this;
+  c.findOne({key: key}, function(err, docs) {
+    if (docs) {
+      cb(err, docs);
+    } else {
+      return(err, "");
+    }
+  });
+}
+
+Config.statics.save = function(key, val,  cb) {
+  c = this;
+  c.findOne({key: key}, function(err, docs) {
+    if (docs) {
+      docs.value = val;
+      docs.save(function(err) {
+        cb(err, docs);
+      });
+    } else {
+      var c = new ConfigModel({
+        key: key,
+        value: val
+      });
+      c.save(function(err) {
+        cb(err,c);
+      });
+    }
+  });
+}
+
 var UserModel = mongoose.model('User', User);
 var ArtistModel = mongoose.model('Artist', Artist);
 var SongModel = mongoose.model('Song', Song);
 var PlayModel = mongoose.model('Play', Play);
+var ConfigModel = mongoose.model('Config', Config);
 
 exports.User = UserModel;
 exports.Artist = ArtistModel;
 exports.Song = SongModel;
 exports.Play = PlayModel;
+exports.DBConfig = ConfigModel;
