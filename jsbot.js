@@ -34,6 +34,7 @@ var wantdj=false;
 var forcedj=false;
 var users = {};
 var banneddj = [];
+var banned = [];
 
 var cs = {
   artist: null,
@@ -138,6 +139,7 @@ bot.on('roomChanged', function(data) {
   // Repopulate user list
   users = {}
   for (var u=0; u<data.users.length; u++) {
+    checkBan(data.users[u].userid);
     us = data.users[u];
     us.lastActive = new Date();
     us.isDj = false;
@@ -215,6 +217,7 @@ bot.on('rem_dj', function (data) {
 
 bot.on('registered', function (data) {
   var us=data.user[0];
+  checkBan(data.user[0].userid);
   us.isDj = false;
   us.warns = [];
   us.lastActive = new Date();
@@ -510,7 +513,7 @@ function doCommand(command, args, source) {
         u=findUser(args);
         if (u) {
           if (isBannedDJ(u.userid)) {
-            emote(source,'User ' + u.name + ' is already banned');
+            emote(source,'User ' + u.name + ' is already banned from DJing');
             return;
           }
           banneddj.push(u.userid);
@@ -522,20 +525,64 @@ function doCommand(command, args, source) {
           emote(source,'User ' + u.name + ' banned from DJing');
         }
         break;
+      case 'ban':
+        u=findUser(args);
+        if (u) {
+          if (isBanned(u.userid)) {
+            emote(source,'User ' + u.name + ' is already banned');
+            return;
+          }
+          banned.push(u.userid);
+          if (users.hasOwnProperty(u.userid)) {
+            bot.bootUser(u.userid,'User is banned from room');
+          }
+          DBConfig.save('banned',banned,function(err,docs) {});
+          emote(source,'User ' + u.name + ' banned from room');
+        }
+        break;
       case 'unbandj':
         u=findUser(args);
         if (u) {
           if (!isBannedDJ(u.userid)) {
-            emote(source,'User ' + u.name + ' is not banned');
+            emote(source,'User ' + u.name + ' is not banned from DJing');
           } else {
             t = banneddj.indexOf(u.userid);
             if (t!=-1) banneddj.splice(t, 1);
             DBConfig.save('banneddj', banneddj, function(err,docs) {});
-            emote(source,'Unbanned ' + u.name);
+            emote(source,'Unbanned ' + u.name + ' from DJing');
           }
         }
         break;
+      case 'unban':
+        doUnban(source, args);
+        break;
     }
+  }
+}
+
+function doUnban(source, args) {
+  name = args.toLowerCase();
+  u=findUser(name);
+  if (u) {
+    if (!isBanned(u.userid)) {
+      emote(source,'User ' + u.name + ' is not banned');
+    } else {
+      t = banned.indexOf(u.userid);
+      if (t!=-1) banned.splice(t, 1);
+      DBConfig.save('banned', banned, function(err,docs) {});
+      emote(source,'Unbanned ' + u.name);
+    }
+  } else {
+    User.findOne({ lowername: name },  function(err,docs) {
+      if (docs) {
+        t = banned.indexOf(docs._id);
+        if (t!=-1) banned.splice(t,1);
+        DBConfig.save('banned', banned, function(err,docs) {});
+        emote(source,'Unbanned ' + docs.name);
+      } else {
+        emote(source,'User ' + u.name + ' not found');
+      }
+    });
   }
 }
 
@@ -928,11 +975,17 @@ function checkDead() {
 }
 
 function jInit() {
-  c = DBConfig.getValue('banneddj', function(err, data) {
+  DBConfig.getValue('banneddj', function(err, data) {
     log(err);
     x = data;
     if (data=="") return;
     banneddj=data.value;
+  });
+  DBConfig.getValue('banned', function(err, data) {
+    log(err);
+    x = data;
+    if (data=="") return;
+    banned=data.value;
   });
 }
 
@@ -944,6 +997,22 @@ function isBannedDJ (userid) {
     }
   }
   return isbdj;
+}
+
+function isBanned (userid) {
+  var isbanned=false;
+  for (var d=0; d<banned.length; d++) {
+    if (banned[d] == userid) {
+      isbanned=true;
+    }
+  }
+  return isbanned;
+}
+
+function checkBan(userid) {
+  if (isBanned(userid)) {
+    bot.bootUser(userid,'User is banned from room');
+  }
 }
 
 setTimeout(jInit, 500);
