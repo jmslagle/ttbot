@@ -51,7 +51,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012051401';
+var botVersion = 'JSBot 2012061901';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -414,6 +414,21 @@ function doCommand(command, args, source) {
           emote(source,'Added ' + newSongName + ' to my queue');
         });
         return;
+      case 'djdel':
+        bot.playlistAll(function(resp) {
+          for (var i=0; i<resp.list.length; i++) {
+            if (resp.list[i]._id == args) {
+              bot.playlistRemove(i);
+              emote(source,'Removed ' + resp.list[i].metadata.song + ' from queue');
+            }
+          }
+        });
+        break;
+      case 'djqueuelen':
+        bot.playlistAll(function(resp) {
+          emote(source,'I have ' + resp.list.length + ' songs in my queue');
+        });
+        break;
       case 'djskip':
         emote(source,'Sorry you dont like my song.');
         bot.stopSong();
