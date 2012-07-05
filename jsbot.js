@@ -51,7 +51,7 @@ var cs = {
   snags: 0
 };
 
-var botVersion = 'JSBot 2012061901';
+var botVersion = 'JSBot 2012070501';
 
 // My TCP Functions
 bot.on('tcpMessage', function (socket, msg) {
@@ -292,8 +292,6 @@ bot.on('pmmed', function (data) {
     userid: uid
   };
   var now = new Date();
-
-  updateActivity(uid);
 
   console.log(now + ' pm: ' + name + ': ' + text);
 
