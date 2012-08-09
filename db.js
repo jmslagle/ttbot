@@ -14,7 +14,8 @@ var User = new Schema({
   plays: { type: Number, default: 0 },
   ups: { type: Number, default: 0 },
   downs: { type: Number, default: 0 },
-  snags: { type: Number, default: 0 }
+  snags: { type: Number, default: 0 },
+  oldnames: [String]
 });
 
 
@@ -92,20 +93,31 @@ Artist.statics.foc = function(name, cb) {
 User.statics.foc = function(id, name, cb) {
   u = this;
   lowername=name.toLowerCase();
-  u.findById(id, function(err,docs) {
-    if (docs) {
-      cb(err,docs);
-    } else {
-      var i = new UserModel({
-        _id: id,
-        name: name,
-        lowername: lowername
-      });
-      i.save(function(err) {
+  (function(lowername) {
+    u.findById(id, function(err,docs) {
+      if (docs) {
+        if (docs.lowername!=lowername) {
+          docs.oldnames.push(docs.lowername);
+          docs.name = name;
+          docs.lowername = lowername;
+          docs.save(function(err) {
+            cb(err,docs);
+          });
+        } else {
+          cb(err,docs);
+        }
+      } else {
+        var i = new UserModel({
+          _id: id,
+          name: name,
+          lowername: lowername
+        });
+        i.save(function(err) {
         cb(err,i);
-      });
-    }
-  });
+        });
+      }
+    });
+  })(lowername);
 };
 
 Play.statics.foc = function(id, cb) {
