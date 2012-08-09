@@ -1,6 +1,7 @@
 var Bot    = require('ttapi');
-var config = require('./jsbot.conf.js');
+var conf   = require('./jsbot.conf.js');
 var db     = require('./db.js');
+var repl   = require('repl');
 
 var Artist = db.Artist;
 var Song = db.Song;
@@ -8,9 +9,9 @@ var User = db.User;
 var Play = db.Play;
 var DBConfig = db.DBConfig;
 
-var bot = new Bot(config.AUTH, config.USERID, config.ROOMID);
-bot.tcpListen(config.telport, '127.0.0.1');
-bot.listen(config.webport,'0.0.0.0');
+var bot = new Bot(conf.AUTH, conf.USERID, conf.ROOMID);
+bot.tcpListen(conf.telport, '127.0.0.1');
+bot.listen(conf.webport,'0.0.0.0');
 
 setTimeout(function() { bot.modifyLaptop('chrome'); }, 2500);
 
@@ -24,12 +25,13 @@ var lastdjannouce = new Date(0);
 var voteup = false;
 var djs = 0;
 
-var saystats = config.saystats;
-var dance = config.dance;
-var doidle = config.doidle;
-var ignore = config.ignore;
+var interactive = false;
+var saystats = conf.saystats;
+var dance = conf.dance;
+var doidle = conf.doidle;
+var ignore = conf.ignore;
 var amdj = false;
-var idleenforce = config.idleenforce;
+var idleenforce = conf.idleenforce;
 var wantdj=false;
 var forcedj=false;
 var users = {};
@@ -77,7 +79,8 @@ bot.on('tcpMessage', function (socket, msg) {
 
 bot.on('httpRequest', function (req,res) {
   var method = req.method;
-  var url = req.url;
+  var aurl = require('url').parse(req.url,true)
+  var url = aurl.pathname;
   switch (url) {
     case '/users/':
       if (method=='GET') {
@@ -94,6 +97,46 @@ bot.on('httpRequest', function (req,res) {
         res.writeHead(200, { 'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': 'http://www.tacorp.net' });
         res.end(JSON.stringify(cs));
+      } else {
+        res.writeHead(500);
+        res.end();
+      }
+      break;
+    case '/playlist':
+      if (method=='GET') {
+        res.write("<HTML><HEAD><TITLE>Playlist</TITLE></HEAD>");
+        res.write("<TABLE>");
+        bot.playlistAll(function(resp) {
+          l=resp.list;
+          for (i=0; i<resp.list.length; i++) {
+            res.write("<TR>");
+            res.write("<TD><A HREF=/pld?id=" + l[i]._id + ">" + l[i]._id + "</A></TD>");
+            res.write("<TD>" + l[i].metadata.artist + "</TD>");
+            res.write("<TD>" + l[i].metadata.album + "</TD>");
+            res.write("<TD>" + l[i].metadata.song + "</TD>");
+            res.write("</TR>");
+          }
+          res.end("</TABLE></HTML>");
+        });
+      } else {
+        res.writeHead(500);
+        res.end();
+      }
+      break;
+    case '/pld':
+      if (method=='GET') {
+        delid=aurl.query.id;
+        if (delid) {
+          bot.playlistAll(function(resp) {
+            for (var i=0; i<resp.list.length; i++) {
+              if (resp.list[i]._id == delid) {
+                bot.playlistRemove(i);
+              }
+            }
+          });
+        }
+        res.writeHead(302, { 'Location': '/playlist' });
+        res.end();
       } else {
         res.writeHead(500);
         res.end();
@@ -146,6 +189,11 @@ bot.on('roomChanged', function(data) {
     us.warns = [];
     users[us.userid] = us;
     console.log('User: ' + us.name);
+    if (isDemod(us.userid)) {
+      if (ismod(us.userid)) {
+        bot.remModerator(us.userid);
+      }
+    }
   }
   for (var d=0; d<meta.djs.length; d++) {
     users[meta.djs[d]].isDj = true;
@@ -178,7 +226,7 @@ bot.on('endsong', function (data) {
 
   endSong();
 
-  if (saystats==true) {
+  if (conf.saystats==true) {
     bot.speak(cs.song + ' stats: up: ' + cs.up + ' down: ' + cs.down +
       ' snag: ' + cs.snags);
   }
@@ -186,7 +234,7 @@ bot.on('endsong', function (data) {
 });
 
 bot.on('add_dj', function (data) {
-  if (data.user[0].userid == config.USERID) {
+  if (data.user[0].userid == conf.USERID) {
     amdj = true;
     wantdj = false;
   }
@@ -203,7 +251,7 @@ bot.on('add_dj', function (data) {
 });
 
 bot.on('rem_dj', function (data) {
-  if (data.user[0].userid == config.USERID) {
+  if (data.user[0].userid == conf.USERID) {
     amdj = false;
     forcedj=false;
   }
@@ -223,11 +271,28 @@ bot.on('registered', function (data) {
   us.lastActive = new Date();
   users[us.userid] = us;
   console.log("Join: " + us.name);
+  if (isDemod(data.user[0].userid)) {
+    if (ismod(data.user[0].userid)) {
+      bot.remModerator(data.user[0].userid);
+    }
+  }
+});
+
+bot.on('new_moderator', function (data) {
+  if (isDemod(data.userid)) {
+    bot.remModerator(data.userid);
+  }
 });
 
 bot.on('deregistered', function (data) {
   delete users[data.user[0].userid];
   console.log("Part: " + data.user[0].name);
+});
+
+bot.on('booted_user', function (data) {
+  m = users[data.modid];
+  u = users[data.userid];
+  console.log("Boot: " + u.name + " by " + m.name + " Reason: " + data.reason);
 });
 
 // Our in room commands
@@ -364,25 +429,25 @@ function doCommand(command, args, source) {
   if (isop(source.userid) || ismod(source.userid) || source.type == 'S') {
     switch(command) {
       case 'sstoggle':
-        saystats = !saystats;
-        emote(source,'Saystats set to: ' + saystats);
+        conf.saystats = !conf.saystats;
+        emote(source,'Saystats set to: ' + conf.saystats);
         return;
       case 'dance':
-        dance = !dance;
-        emote(source,'Dance set to: ' + dance);
+        conf.dance = !conf.dance;
+        emote(source,'Dance set to: ' + conf.dance);
         return;
       case 'idlewarn':
-        doidle = !doidle;
-        emote(source,'Idle announcements set to: ' + doidle);
+        conf.doidle = !conf.doidle;
+        emote(source,'Idle announcements set to: ' + conf.doidle);
         return;
       case 'idleenforce':
-        idleenforce = !idleenforce;
-        emote(source,'Idle Enforcement set to: ' + idleenforce);
+        conf.idleenforce = !conf.idleenforce;
+        emote(source,'Idle Enforcement set to: ' + conf.idleenforce);
         return;
       case 'idlesettings':
-        emote(source,"Idle Warn: " + config.idlewarn + " Idle Limit: "
-          + config.idlelimit + " Idle Reset: " + config.idlereset
-          + " Idle Kick: " + config.idlekick + " Min DJS: " + config.mindjs);
+        emote(source,"Idle Warn: " + conf.idlewarn + " Idle Limit: "
+          + conf.idlelimit + " Idle Reset: " + conf.idlereset
+          + " Idle Kick: " + conf.idlekick + " Min DJS: " + conf.mindjs);
         return;
       case 'djs':
         var now = new Date();
@@ -539,19 +604,30 @@ function doCommand(command, args, source) {
         }
         break;
       case 'ban':
-        u=findUser(args);
-        if (u) {
-          if (isBanned(u.userid)) {
-            emote(source,'User ' + u.name + ' is already banned');
+        if (args.substring(0,1) == '!') {
+          uid = args.substring(1);
+          name = args.substring(1);
+          if (isBanned(uid)) {
+            emote(source,'Userid ' + uid + ' is already banned');
             return;
           }
-          banned.push(u.userid);
-          if (users.hasOwnProperty(u.userid)) {
-            bot.bootUser(u.userid,'User is banned from room');
+        } else {
+          u=findUser(args);
+          if (u) {
+            uid=u.userid;
+            name=u.name;
           }
-          DBConfig.save('banned',banned,function(err,docs) {});
-          emote(source,'User ' + u.name + ' banned from room');
         }
+        if (isBanned(uid)) {
+          emote(source,'User ' + name + ' is already banned');
+          return;
+        }
+        banned.push(uid);
+        if (users.hasOwnProperty(uid)) {
+          bot.bootUser(u.userid,'User is banned from room');
+        }
+        DBConfig.save('banned',banned,function(err,docs) {});
+        emote(source,'User ' + name + ' banned from room');
         break;
       case 'unbandj':
         u=findUser(args);
@@ -683,7 +759,7 @@ function doRecordArtist(source) {
 }
 
 function doDance(source) {
-  if (!isop(source.userid) && !ismod(source.userid) && dance == false) {
+  if (!isop(source.userid) && !ismod(source.userid) && conf.dance == false) {
     return;
   }
   if (isignore(cs.djid)) {
@@ -692,7 +768,7 @@ function doDance(source) {
   if (!voteup) {
   setTimeout(function() {
     bot.vote('up'); },
-    2750 + (Math.floor(Math.random()*12)*1000)
+    2750 + (Math.floor(Math.random()*6)*1000)
     );
   }
   voteup=true;
@@ -842,8 +918,8 @@ function endSong() {
 }
 
 function isignore(userid) {
-  for (var i = 0; i < config.ignore.length; i++) {
-    if (userid == config.ignore[i]) {
+  for (var i = 0; i < conf.ignore.length; i++) {
+    if (userid == conf.ignore[i]) {
       return true;
     }
   }
@@ -851,8 +927,8 @@ function isignore(userid) {
 }
 
 function isop (userid) {
-  for (var i = 0; i < config.ops.length; i++) {
-    if (userid == config.ops[i]) {
+  for (var i = 0; i < conf.ops.length; i++) {
+    if (userid == conf.ops[i]) {
       return true;
     }
   }
@@ -877,27 +953,27 @@ function updateActivity(userid) {
 
 function enforceRoom() {
   var now = new Date();
-  if (djs < config.mindjs) { return; }
+  if (djs < conf.mindjs) { return; }
   for (var u in users) {
     if (users[u].isDj == false) { continue; }
     // Do the idle check so we can just compare
     checkIdle();
-    if (now - users[u].lastActive > (config.idlekick * 60000)) {
-      if (idleenforce == true) {
+    if (now - users[u].lastActive > (conf.idlekick * 60000)) {
+      if (conf.idleenforce == true) {
         console.log("Idle Kick: " + users[u].name);
         bot.remDj(users[u].userid);
         bot.speak("Removing " + users[u].name + " for inactivity");
       }
       continue;
     }
-    if (users[u].warns.length >= config.idlelimit) {
+    if (users[u].warns.length >= conf.idlelimit) {
       console.log("Idle Limit: " + users[u].name);
-      if (doidle == true) {
+      if (conf.doidle) {
         bot.speak("Sorry " + "@" + users[u].name + " you're idle more than " +
-            config.idlelimit + " times in " + config.idlereset/60 + " hour(s). " +
+            conf.idlelimit + " times in " + conf.idlereset/60 + " hour(s). " +
             " Feel free to hop back up when you return.");
       }
-      if (idleenforce == true) {
+      if (conf.idleenforce == true) {
         bot.remDj(users[u].userid);
         users[u].warns = [];
       }
@@ -911,20 +987,20 @@ function checkIdle() {
   for(var u in users) {
     // First age out any old ones
     for (var i=0;i<users[u].warns.length;i++) {
-      if (now - users[u].warns[i] > (config.idlereset * 60000)) {
+      if (now - users[u].warns[i] > (conf.idlereset * 60000)) {
         users[u].warns.splice(i,1);
       }
     }
     if (users[u].isDj == true) {
-      if (now - users[u].lastActive > (config.idlewarn * 60000)) {
+      if (now - users[u].lastActive > (conf.idlewarn * 60000)) {
         // Don't due stuff if it's too soon
         if (users[u].warns.length > 0 &&
             (now - users[u].warns[users[u].warns.length-1]) <
-            (config.idlewarn * 60000)) { continue; }
+            (conf.idlewarn * 60000)) { continue; }
         // Add new warning
         users[u].warns.push(now);
-        if (djs > config.mindjs &&
-            users[u].warns.length < (config.idlelimit+1)) {
+        if (djs > conf.mindjs &&
+            users[u].warns.length < (conf.idlelimit+1)) {
           switch(users[u].warns.length) {
             case 1:
               var warn = "First";
@@ -939,11 +1015,11 @@ function checkIdle() {
               var warn = users[u].warns.length + "th";
               break;
           }
-          if (doidle == true) {
+          if (conf.doidle) {
             bot.speak("@" + users[u].name + " - " + warn +
-                " warning - idle > " + config.idlewarn + " mins " +
-               "in " + config.idlereset/60 + " hours.  Please be active "+
-               config.idlewarn + "x" + config.idlelimit);
+                " warning - idle > " + conf.idlewarn + " mins " +
+               "in " + conf.idlereset/60 + " hours.  Please be active "+
+               conf.idlewarn + "x" + conf.idlelimit);
           }
         }
       }
@@ -981,7 +1057,7 @@ function log(data) {
 
 function checkDead() {
   var now=new Date();
-  if (now - bot._lastHeartbeat > config.dead * 60000) {
+  if (now - bot.lastActivity > conf.dead * 60000) {
     log('Heartbeat Expired - killing bot for reconnect');
     process.exit(1);
   }
@@ -1000,6 +1076,12 @@ function jInit() {
     if (data=="") return;
     banned=data.value;
   });
+  conf.demod = [];
+  DBConfig.getValue('demod', function(err, data) {
+    log(err);
+    if (data=="") return;
+    conf.demod=data.value;
+  });
 }
 
 function isBannedDJ (userid) {
@@ -1007,6 +1089,7 @@ function isBannedDJ (userid) {
   for (var d=0; d<banneddj.length; d++) {
     if (banneddj[d] == userid) {
       isbdj=true;
+      break;
     }
   }
   return isbdj;
@@ -1017,9 +1100,21 @@ function isBanned (userid) {
   for (var d=0; d<banned.length; d++) {
     if (banned[d] == userid) {
       isbanned=true;
+      break;
     }
   }
   return isbanned;
+}
+
+function isDemod(userid) {
+  var isdemod = false;
+  for (var d=0; d<conf.demod.length; d++) {
+    if (conf.demod[d] == userid) {
+      isdemod=true;
+      break;
+    }
+  }
+  return isdemod;
 }
 
 function checkBan(userid) {
@@ -1031,5 +1126,9 @@ function checkBan(userid) {
 setTimeout(jInit, 500);
 setInterval(checkDead, 10000);
 setInterval(checkIdle, 10000);
+
+if (interactive == true) {
+  repl.start('> ').context.bot = bot;
+}
 
 
